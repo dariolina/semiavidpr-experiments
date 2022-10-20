@@ -48,12 +48,12 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         end_timer!(timer);
 
         let timer = start_timer!(|| "KZG setup and preprocessing of setup");
-        let kzg10_pp = KZG10::<E, DensePolynomial<E::Fr>>::setup(L-1, false, &mut rng).unwrap();
+        let kzg10_pp = KZG10::<E, DensePolynomial<E::Fr>>::setup(L+k-1, false, &mut rng).unwrap();
 
         // https://github.com/arkworks-rs/poly-commit/blob/4d78d534cb55a9b13f34dd76b9702cae3ab2a2a1/src/kzg10/mod.rs#L459
         let (kzg10_ck, kzg10_vk) = {
-            let powers_of_g = kzg10_pp.powers_of_g[..=(L-1)].to_vec();
-            let powers_of_gamma_g = (0..=(L-1))
+            let powers_of_g = kzg10_pp.powers_of_g[..=(L+k-1)].to_vec();
+            let powers_of_gamma_g = (0..=(L+k-1))
                 .map(|i| kzg10_pp.powers_of_gamma_g[&i])
                 .collect();
 
