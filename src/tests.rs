@@ -1,7 +1,9 @@
 use super::*;
 
+
 use ark_bls12_381::{Bls12_381};
 use ark_bn254::{Bn254};
+
 
 #[test]
 fn test_kzg_commit_bls12_381() {
@@ -73,4 +75,41 @@ fn test_filesizes() {
     assert_eq!(scheme.get_filesize_in_bytes(), 254 * 256*1024 / 8);
     let scheme = SemiAvidPr::<Bn254>::setup(&mut rng, 512, 256, 1024);
     assert_eq!(scheme.get_filesize_in_bytes(), 253 * 256*1024 / 8);
+}
+#[test]
+fn test_commit_commit_bls12_381() {
+    _test_commit_commit::<Bls12_381>()
+}
+//tests 'commitment to commitments' i.e a polynomial where commitments are coefficients evaluated at public parameters
+fn _test_commit_commit<E: PairingEngine>() {
+    let mut rng = ark_std::rand::thread_rng();
+    
+    let scheme = SemiAvidPr::<E>::setup(&mut rng, 16, 8, 1024);
+    let data_uncoded = scheme.generate_random_file(&mut rng);
+    let mut comm_root = E::G1Projective::zero();
+
+    //i iterates columns
+    for i in 0..scheme.k {
+        let poly_evals = Evaluations::from_vec_and_domain(data_uncoded.iter().map(|r| r[i]).collect(), scheme.domain_polycommit);
+        let poly_poly = poly_evals.interpolate();
+
+        //compute corresponding term into commitment root
+        let mut comm_root_term = E::G1Projective::zero();
+
+        assert_eq!(scheme.kzg10_ck.powers_of_g.len(), poly_poly.coeffs.len()+scheme.k);
+
+        //j iterates rows
+        for j in 0..scheme.kzg10_ck.powers_of_g.len()-scheme.k {
+            comm_root_term += scheme.kzg10_ck.powers_of_g[j+i].mul(poly_poly.coeffs[j]);
+        }
+        
+        comm_root += comm_root_term;
+        
+    }   
+
+    //should be anything but 0   
+    assert!(
+            !comm_root.is_zero(),
+            "oops"
+     );
 }
