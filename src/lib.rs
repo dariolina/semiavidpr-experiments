@@ -228,6 +228,24 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         data_coded
     }
 
+    pub fn disperse_encode_rows_systematic(&self, data_uncoded: &Vec<Vec<E::Fr>>) -> Vec<Vec<E::Fr>> {
+        let mut data_coded = Vec::new();
+
+        let timer_outer = start_timer!(|| "Encoding rows");
+        for j in 0..self.L {
+            let timer_inner = start_timer!(|| format!("Row {}", j));
+
+            let poly_evals = Evaluations::from_vec_and_domain(data_uncoded[j].iter().copied().collect(), self.domain_polycommit);
+            let poly_poly = poly_evals.interpolate();
+            let poly_evals = poly_poly.evaluate_over_domain(self.domain_encoding);
+            data_coded.push(poly_evals.evals);
+
+            end_timer!(timer_inner);
+        }
+        end_timer!(timer_outer);
+
+        data_coded
+    }
 
     pub fn disperse_verify_chunks(&self, column_commitments: &Vec<E::G1Affine>, data_coded: &Vec<Vec<E::Fr>>) -> bool {
         let timer_outer = start_timer!(|| "Checking coded columns");
