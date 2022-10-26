@@ -166,13 +166,22 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
 
         commitment
     }
-    fn lagrange(&self, i:usize,idx:usize)->E::Fr{
+    fn lagrange(&self, i:usize, idx:usize)->E::Fr{
         let mut coef =E::Fr::one();
+
+        let domain_uncoded: GeneralEvaluationDomain<E::Fr> = ark_poly::domain::EvaluationDomain::<E::Fr>::new(self.k).unwrap();
+        //assert first element is the field 1
+        assert_eq!(domain_uncoded.element(0), E::Fr::one(),"one is not one");
+
         for j in 0..self.k{
             if j==i{
                 continue;
             }
-            coef = coef * (self.domain_encoding.element(idx)-self.domain_encoding.element(j))/(self.domain_encoding.element(i)-self.domain_encoding.element(j));
+            coef = coef * (domain_uncoded.element(idx)-domain_uncoded.element(j))/(domain_uncoded.element(i)-domain_uncoded.element(j));
+        }
+        if idx==i{
+            //assert definition of lagrange basis poly
+            assert_eq!(coef, E::Fr::one());
         }
         coef
     }
@@ -181,7 +190,7 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         let timer = start_timer!(|| "'Encoding' of KZG column commitments");
         let mut commitment = E::G1Projective::zero();
         for j in 0..self.k {
-            let coef = self.lagrange(j,idx);
+            let coef = self.lagrange(j, idx);
             commitment += column_commitments[j].mul(coef);
         }
         let commitment = commitment.into_affine();
@@ -235,9 +244,12 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         let domain_uncoded: GeneralEvaluationDomain<E::Fr> = ark_poly::domain::EvaluationDomain::<E::Fr>::new(self.k).unwrap();
         for j in 0..self.L {
             let timer_inner = start_timer!(|| format!("Row {}", j));
+            //assert expected length of source data
+            assert_eq!(data_uncoded[j].len(), self.k);
 
             let mut poly_evals = Evaluations::from_vec_and_domain(data_uncoded[j].iter().copied().collect(), domain_uncoded);
             let poly_poly = poly_evals.interpolate();
+            //assert expected degree of interpolated polynomial
             assert_eq!(poly_poly.degree(), self.k-1);
 
             poly_evals = poly_poly.evaluate_over_domain(self.domain_encoding);
@@ -260,6 +272,8 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
 
             let commitment = self.commit_column(&data_coded, i);
             let commitment_check = self.encode_commitments(&column_commitments, i);
+            
+
             if commitment != commitment_check {
                 return false;
             }
