@@ -255,12 +255,18 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
             poly_evals = poly_poly.evaluate_over_domain(self.domain_encoding);
 
             data_coded.push(poly_evals.evals);
+
+            //assert expected length of erasure coded data
             assert_eq!(data_coded[j].len(), self.n);
             
 
             end_timer!(timer_inner);
         }
         end_timer!(timer_outer);
+
+        //assert uncoded data matches the even indices of coded
+        assert_eq!(data_coded[0][0], data_uncoded[0][0]);
+        assert_eq!(data_coded[0][2], data_uncoded[0][1]);
 
         data_coded
     }
@@ -291,6 +297,7 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
 
             let commitment = self.commit_column(&data_coded, i);
             let commitment_check = self.encode_commitments_systematic(&column_commitments, i);
+            assert_eq!(commitment, commitment_check, "column {i} doesn't verify" );
             if commitment != commitment_check {
                 return false;
             }
