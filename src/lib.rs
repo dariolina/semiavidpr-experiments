@@ -264,7 +264,23 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
 
         true
     }
+    pub fn disperse_verify_chunks_systematic(&self, column_commitments: &Vec<E::G1Affine>, data_coded: &Vec<Vec<E::Fr>>) -> bool {
+        let timer_outer = start_timer!(|| "Checking coded columns");
+        for i in 0..self.n {
+            let timer_inner = start_timer!(|| format!("Column {}", i));
 
+            let commitment = self.commit_column(&data_coded, i);
+            let commitment_check = self.encode_commitments_systematic(&column_commitments, i);
+            if commitment != commitment_check {
+                return false;
+            }
+
+            end_timer!(timer_inner);
+        }
+        end_timer!(timer_outer);
+
+        true
+    }
 
     pub fn retrieve_download_chunks(&self, data_coded: &Vec<Vec<E::Fr>>, idxs_download_nodes: &Vec<usize>) -> Vec<Vec<E::Fr>> {
         let timer = start_timer!(|| "Downloading chunks");
