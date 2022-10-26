@@ -174,5 +174,9 @@ fn _test_systematic<E: PairingEngine>(){
 
     let data_coded = scheme.disperse_encode_rows_systematic(&data_uncoded);
 
+    //assert uncoded data matches the even indices of coded
+    assert_eq!(data_coded[0][0], data_uncoded[0][0]);
+    assert_eq!(data_coded[0][2], data_uncoded[0][1]);
+    
     assert!(scheme.disperse_verify_chunks_systematic(&column_commitments, &data_coded));
 }
