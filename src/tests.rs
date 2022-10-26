@@ -158,3 +158,21 @@ fn _test_commit_commit1<E: PairingEngine>() {
     //    E::G1Affine::zero()
     //);
 }
+
+#[test]
+fn test_systematic_bls12_381() {
+    _test_systematic::<Bls12_381>()
+}
+//tests systematic encoding of data and commitments
+fn _test_systematic<E: PairingEngine>(){
+    let mut rng = ark_std::rand::thread_rng();
+    
+    let scheme = SemiAvidPr::<E>::setup(&mut rng, 16, 8, 1024);
+    let data_uncoded = scheme.generate_random_file(&mut rng);
+
+    let column_commitments = scheme.disperse_compute_column_commitments(&data_uncoded);
+
+    let data_coded = scheme.disperse_encode_rows(&data_uncoded);
+
+    assert!(scheme.disperse_verify_chunks(&column_commitments, &data_coded));
+}
