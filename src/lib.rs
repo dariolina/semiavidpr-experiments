@@ -232,13 +232,19 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         let mut data_coded = Vec::new();
 
         let timer_outer = start_timer!(|| "Encoding rows");
+        let domain_uncoded: GeneralEvaluationDomain<E::Fr> = ark_poly::domain::EvaluationDomain::<E::Fr>::new(self.k).unwrap();
         for j in 0..self.L {
             let timer_inner = start_timer!(|| format!("Row {}", j));
 
-            let poly_evals = Evaluations::from_vec_and_domain(data_uncoded[j].iter().copied().collect(), self.domain_polycommit);
+            let mut poly_evals = Evaluations::from_vec_and_domain(data_uncoded[j].iter().copied().collect(), domain_uncoded);
             let poly_poly = poly_evals.interpolate();
-            let poly_evals = poly_poly.evaluate_over_domain(self.domain_encoding);
+            assert_eq!(poly_poly.degree(), self.k-1);
+
+            poly_evals = poly_poly.evaluate_over_domain(self.domain_encoding);
+
             data_coded.push(poly_evals.evals);
+            assert_eq!(data_coded[j].len(), self.n);
+            
 
             end_timer!(timer_inner);
         }

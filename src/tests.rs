@@ -172,7 +172,7 @@ fn _test_systematic<E: PairingEngine>(){
 
     let column_commitments = scheme.disperse_compute_column_commitments(&data_uncoded);
 
-    let data_coded = scheme.disperse_encode_rows(&data_uncoded);
+    let data_coded = scheme.disperse_encode_rows_systematic(&data_uncoded);
 
-    assert!(scheme.disperse_verify_chunks(&column_commitments, &data_coded));
+    assert!(scheme.disperse_verify_chunks_systematic(&column_commitments, &data_coded));
 }
