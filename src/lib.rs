@@ -166,6 +166,16 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
 
         commitment
     }
+    fn lagrange(&self, i:usize,idx:usize)->E::Fr{
+        let mut coef =E::Fr::one();
+        for j in 0..self.k{
+            if j==i{
+                continue;
+            }
+            coef = coef * (self.domain_encoding.element(idx)-self.domain_encoding.element(j))/(self.domain_encoding.element(i)-self.domain_encoding.element(j));
+        }
+        coef
+    }
 
 
     pub fn disperse_compute_column_commitments(&self, data_uncoded: &Vec<Vec<E::Fr>>) -> Vec<E::G1Affine> {
