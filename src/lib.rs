@@ -177,6 +177,20 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         coef
     }
 
+    fn encode_commitments_systematic(&self, column_commitments: &Vec<E::G1Affine>, idx: usize) -> E::G1Affine {
+        let timer = start_timer!(|| "'Encoding' of KZG column commitments");
+        let mut commitment = E::G1Projective::zero();
+        for j in 0..self.k {
+            let coef = self.lagrange(j,idx);
+            commitment += column_commitments[j].mul(coef);
+        }
+        let commitment = commitment.into_affine();
+        end_timer!(timer);
+
+        commitment
+    }
+    
+    
 
     pub fn disperse_compute_column_commitments(&self, data_uncoded: &Vec<Vec<E::Fr>>) -> Vec<E::G1Affine> {
         let mut column_commitments = Vec::new();
