@@ -181,21 +181,36 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         }
         if idx==i{
             //assert definition of lagrange basis poly
-            assert_eq!(coef, E::Fr::one());
         }
         coef
+    }
+    fn barycentric(&self,j:usize, idx:usize)->E::Fr{
+        let d_in_field = E::Fr::from_le_bytes_mod_order(&d.to_le_bytes());
+        let bary_coef = (self.domain_encoding.element(idx).pow(d_in_field.into_repr())-self.domain_encoding.element(1))/self.domain_encoding.element(d);
+
+        (self.domain_encoding.element(j)/(self.domain_encoding.element(idx)-self.domain_encoding.element(j)))*bary_coef
+        
     }
 
     fn encode_commitments_systematic(&self, column_commitments: &Vec<E::G1Affine>, idx: usize) -> E::G1Affine {
         let timer = start_timer!(|| "'Encoding' of KZG column commitments");
         let mut commitment = E::G1Projective::zero();
-        for j in 0..self.k {
-            let coef = self.lagrange(j, idx);
-            commitment += column_commitments[j].mul(coef);
-        }
-        let commitment = commitment.into_affine();
-        end_timer!(timer);
 
+        if idx >=self.k{
+            for j in 0..self.k {
+                let coef = self.barycentric(j, idx);
+                commitment += column_commitments[j].mul(coef);
+            }
+        }
+        else if idx <self.k{
+            for j in 0..self.k {
+                let coef = self.lagrange(j, idx);
+                commitment += column_commitments[j].mul(coef);
+            }
+        }
+        
+        end_timer!(timer);
+        let commitment = commitment.into_affine();
         commitment
     }
     
@@ -218,6 +233,24 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         column_commitments
     }
 
+    pub fn disperse_compute_column_commitments_systematic(&self, data: &Vec<Vec<E::Fr>>) -> Vec<E::G1Affine> {
+        let mut column_commitments = Vec::new();
+
+        let timer_outer = start_timer!(|| "Computing column commitments");
+
+        for i in 0..data[0].len() {
+            let timer_inner = start_timer!(|| format!("Column {}", i));
+
+            let commitment = self.commit_column(&data, i);
+
+            column_commitments.push(commitment);
+
+            end_timer!(timer_inner);
+        }
+        end_timer!(timer_outer);
+
+        column_commitments
+    }
 
     pub fn disperse_encode_rows(&self, data_uncoded: &Vec<Vec<E::Fr>>) -> Vec<Vec<E::Fr>> {
         let mut data_coded = Vec::new();
@@ -245,12 +278,12 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         for j in 0..self.L {
             let timer_inner = start_timer!(|| format!("Row {}", j));
             //assert expected length of source data
-            assert_eq!(data_uncoded[j].len(), self.k);
+            //assert_eq!(data_uncoded[j].len(), self.k);
 
             let mut poly_evals = Evaluations::from_vec_and_domain(data_uncoded[j].iter().copied().collect(), domain_uncoded);
             let poly_poly = poly_evals.interpolate();
             //assert expected degree of interpolated polynomial
-            assert_eq!(poly_poly.degree(), self.k-1);
+            //assert_eq!(poly_poly.degree(), self.k-1);
 
             poly_evals = poly_poly.evaluate_over_domain(self.domain_encoding);
 
@@ -265,8 +298,45 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         end_timer!(timer_outer);
 
         //assert uncoded data matches the even indices of coded
-        assert_eq!(data_coded[0][0], data_uncoded[0][0]);
-        assert_eq!(data_coded[0][2], data_uncoded[0][1]);
+       // assert_eq!(data_coded[0][0], data_uncoded[0][0]);
+        //assert_eq!(data_coded[0][2], data_uncoded[0][1]);
+
+        data_coded
+    }
+
+    pub fn disperse_encode_rows_lagrange(&self, data_uncoded: &Vec<Vec<E::Fr>>) -> Vec<Vec<E::Fr>> {
+        let mut data_coded = Vec::new();
+
+        for row in 0..self.L {
+
+            let mut poly_evals = Vec::new();
+            for idx in 0..self.n{
+                let mut eval = E::Fr::zero();
+                if idx >=self.k{
+                    for j in 0..self.k {
+                        let coef = self.barycentric(j, idx);
+                        eval += data_uncoded[row][j]*coef;
+                    }
+                }
+                else if idx <self.k{
+                    for j in 0..self.k {
+                        let coef = self.lagrange(j, idx);
+                        eval += data_uncoded[row][j]*coef;
+                    }
+                }
+                poly_evals.push(eval);
+            }
+
+            data_coded.push(poly_evals);
+
+            //assert expected length of erasure coded data
+            assert_eq!(data_coded[row].len(), self.n);  
+
+        }
+
+        //assert uncoded data matches the even indices of coded
+       // assert_eq!(data_coded[0][0], data_uncoded[0][0]);
+        //assert_eq!(data_coded[0][2], data_uncoded[0][1]);
 
         data_coded
     }
@@ -290,16 +360,16 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
 
         true
     }
-    pub fn disperse_verify_chunks_systematic(&self, column_commitments: &Vec<E::G1Affine>, data_coded: &Vec<Vec<E::Fr>>) -> bool {
+    pub fn disperse_verify_chunks_systematic(&self, source_column_commitments: &Vec<E::G1Affine>, data_coded: &Vec<Vec<E::Fr>>) -> bool {
         let timer_outer = start_timer!(|| "Checking coded columns");
         for i in 0..self.n {
             let timer_inner = start_timer!(|| format!("Column {}", i));
 
             let commitment = self.commit_column(&data_coded, i);
-            let commitment_check = self.encode_commitments_systematic(&column_commitments, i);
-            assert_eq!(commitment, commitment_check, "column {i} doesn't verify" );
-            if commitment != commitment_check {
-                return false;
+            let commitment_interp = self.encode_commitments_systematic(&source_column_commitments, i);
+            
+            if commitment != commitment_interp {
+                return false
             }
 
             end_timer!(timer_inner);
