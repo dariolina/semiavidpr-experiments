@@ -181,10 +181,13 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         }
         if idx==i{
             //assert definition of lagrange basis poly
+            assert_eq!(coef, E::Fr::one(),"lagrange basis wrong");
         }
         coef
     }
     fn barycentric(&self,j:usize, idx:usize)->E::Fr{
+        
+        let d = self.k-1;
         let d_in_field = E::Fr::from_le_bytes_mod_order(&d.to_le_bytes());
         let bary_coef = (self.domain_encoding.element(idx).pow(d_in_field.into_repr())-self.domain_encoding.element(1))/self.domain_encoding.element(d);
 
