@@ -121,43 +121,6 @@ fn _test_commit_commit1<E: PairingEngine>() {
             comm_root2
      );
 }
-        //compute corresponding term into commitment root
-        let mut comm_root_term = E::G1Projective::zero();
-
-        assert_eq!(scheme.kzg10_ck.powers_of_g.len(), poly_poly.coeffs.len()+scheme.k);
-
-        //j iterates rows
-        for j in 0..scheme.kzg10_ck.powers_of_g.len()-scheme.k {
-            commitment += scheme.kzg10_ck.powers_of_g[j].mul(poly_poly.coeffs[j]);
-            comm_root_term += scheme.kzg10_ck.powers_of_g[j+i].mul(poly_poly.coeffs[j]);
-        }
-        comms_list.push(commitment);
-
-        comm_root += comm_root_term;
-        
-    }   
-
-    //should be anything but 0   
-    assert!(
-            !comm_root.is_zero(),
-            "oops"
-     );
-    assert_eq!(
-        comms_list.len(),
-        scheme.k
-    );
-
-    //compute witness polynomial to some commitment
-    //let point = 5;
-    //let mut divisor=E::G1Affine::zero();
-    //divisor += scheme.kzg10_ck.powers_of_g[1];
-   //divisor-=scheme.kzg10_ck.powers_of_g[point];
-
-   // assert_eq!(
-    //    divisor,
-    //    E::G1Affine::zero()
-    //);
-}
 
 #[test]
 fn test_systematic_bls12_381() {
