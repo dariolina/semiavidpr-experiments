@@ -224,24 +224,6 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         column_commitments
     }
 
-    pub fn disperse_compute_column_commitments_systematic(&self, data: &Vec<Vec<E::Fr>>) -> Vec<E::G1Affine> {
-        let mut column_commitments = Vec::new();
-
-        let timer_outer = start_timer!(|| "Computing column commitments");
-
-        for i in 0..data[0].len() {
-            let timer_inner = start_timer!(|| format!("Column {}", i));
-
-            let commitment = self.commit_column(&data, i);
-
-            column_commitments.push(commitment);
-
-            end_timer!(timer_inner);
-        }
-        end_timer!(timer_outer);
-
-        column_commitments
-    }
 
     pub fn disperse_encode_rows(&self, data_uncoded: &Vec<Vec<E::Fr>>) -> Vec<Vec<E::Fr>> {
         let mut data_coded = Vec::new();
