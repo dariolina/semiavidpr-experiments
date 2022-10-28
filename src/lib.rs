@@ -167,24 +167,12 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         commitment
     }
     fn lagrange(&self, i:usize, idx:usize)->E::Fr{
-        let mut coef =E::Fr::one();
-
-        let domain_uncoded: GeneralEvaluationDomain<E::Fr> = ark_poly::domain::EvaluationDomain::<E::Fr>::new(self.k).unwrap();
-        //assert first element is the field 1
-        assert_eq!(domain_uncoded.element(0), E::Fr::one(),"one is not one");
-
-        for j in 0..self.k{
-            if j==i{
-                continue;
-            }
-            coef = coef * (domain_uncoded.element(idx)-domain_uncoded.element(j))/(domain_uncoded.element(i)-domain_uncoded.element(j));
-        }
         if idx==i{
-            //assert definition of lagrange basis poly
-            assert_eq!(coef, E::Fr::one(),"lagrange basis wrong");
+           return E::Fr::one()
         }
-        coef
+        E::Fr::zero()
     }
+
     fn barycentric(&self,j:usize, idx:usize)->E::Fr{
         
         let d = self.k-1;
