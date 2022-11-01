@@ -1,7 +1,10 @@
-use super::*;
-
+use crate::SemiAvidPr;
 use ark_bls12_381::Bls12_381;
 use ark_bn254::Bn254;
+use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
+use ark_ff::Zero;
+use ark_poly::Evaluations;
+use ark_poly_commit::kzg10::KZG10;
 
 #[test]
 fn test_kzg_commit_bls12_381() {
@@ -14,7 +17,7 @@ fn test_kzg_commit_bn254() {
 }
 
 fn _test_kzg_commit<E: PairingEngine>() {
-    let mut rng = ark_std::rand::thread_rng();
+    let mut rng = rand::thread_rng();
 
     let scheme = SemiAvidPr::<E>::setup(&mut rng, 16, 8, 1024);
     let data_uncoded = scheme.generate_random_file(&mut rng);
@@ -59,7 +62,7 @@ fn test_kzg_commitment_unwrap_wrap_bn254() {
 }
 
 fn _test_kzg_commitment_unwrap_wrap<E: PairingEngine>() {
-    let mut rng = ark_std::rand::thread_rng();
+    let mut rng = rand::thread_rng();
 
     let scheme = SemiAvidPr::<E>::setup(&mut rng, 2, 1, 1024);
     let data_uncoded = scheme.generate_random_file(&mut rng);
@@ -79,7 +82,7 @@ fn _test_kzg_commitment_unwrap_wrap<E: PairingEngine>() {
 
 #[test]
 fn test_filesizes() {
-    let mut rng = ark_std::rand::thread_rng();
+    let mut rng = rand::thread_rng();
     let scheme = SemiAvidPr::<Bls12_381>::setup(&mut rng, 512, 256, 1024);
     assert_eq!(scheme.get_filesize_in_bytes(), 254 * 256 * 1024 / 8);
     let scheme = SemiAvidPr::<Bn254>::setup(&mut rng, 512, 256, 1024);
@@ -91,7 +94,7 @@ fn test_commit_commit1_bls12_381() {
 }
 //tests 'commitment to commitments' i.e a polynomial where commitments are coefficients evaluated at public parameters
 fn _test_commit_commit1<E: PairingEngine>() {
-    let mut rng = ark_std::rand::thread_rng();
+    let mut rng = rand::thread_rng();
 
     let scheme = SemiAvidPr::<E>::setup(&mut rng, 16, 8, 1024);
     let data_uncoded = scheme.generate_random_file(&mut rng);
@@ -138,7 +141,7 @@ fn test_systematic_bls12_381() {
 }
 //tests systematic encoding of data and commitments
 fn _test_systematic<E: PairingEngine>() {
-    let mut rng = ark_std::rand::thread_rng();
+    let mut rng = rand::thread_rng();
 
     let scheme = SemiAvidPr::<E>::setup(&mut rng, 16, 8, 1024);
     let data_uncoded = scheme.generate_random_file(&mut rng);
