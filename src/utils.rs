@@ -1,4 +1,4 @@
-use ark_ff::fields::{Field};
+use ark_ff::fields::Field;
 
 #[derive(Clone, Debug)]
 pub struct Matrix<T: Field> {
@@ -28,8 +28,12 @@ impl<T: Field> Matrix<T> {
 
     pub fn from_nested_vec(height: usize, width: usize, vec: Vec<Vec<T>>) -> Self {
         let mut entries = Vec::new();
-        entries.resize(height*width, T::default());
-        let mut matrix = Self { entries, myheight: height, mywidth: width };
+        entries.resize(height * width, T::default());
+        let mut matrix = Self {
+            entries,
+            myheight: height,
+            mywidth: width,
+        };
 
         assert!(vec.len() == height);
         for row in 0..height {
@@ -44,8 +48,12 @@ impl<T: Field> Matrix<T> {
 
     fn from_diagonal_element(height: usize, off_diag_elem: T, on_diag_elem: T) -> Self {
         let mut entries = Vec::new();
-        entries.resize(height*height, off_diag_elem);
-        let mut matrix = Self { entries, myheight: height, mywidth: height };
+        entries.resize(height * height, off_diag_elem);
+        let mut matrix = Self {
+            entries,
+            myheight: height,
+            mywidth: height,
+        };
 
         for row in 0..height {
             matrix.set(row, row, on_diag_elem);
@@ -61,8 +69,12 @@ impl<T: Field> Matrix<T> {
         let width = self.width() + other.width();
 
         let mut entries = Vec::new();
-        entries.resize(height*width, T::default());
-        let mut matrix = Self { entries, myheight: height, mywidth: width };
+        entries.resize(height * width, T::default());
+        let mut matrix = Self {
+            entries,
+            myheight: height,
+            mywidth: width,
+        };
 
         for row in 0..height {
             for col in 0..self.width() {
@@ -81,8 +93,12 @@ impl<T: Field> Matrix<T> {
         let width = idxs.len();
 
         let mut entries = Vec::new();
-        entries.resize(height*width, T::default());
-        let mut matrix = Self { entries, myheight: height, mywidth: width };
+        entries.resize(height * width, T::default());
+        let mut matrix = Self {
+            entries,
+            myheight: height,
+            mywidth: width,
+        };
 
         for row in 0..height {
             for (col_new, col_old) in idxs.iter().enumerate() {
@@ -101,7 +117,11 @@ impl<T: Field> Matrix<T> {
 
     fn multiply_row_and_add_to_row(&mut self, row_src: usize, val: T, row_dst: usize) {
         for col in 0..self.width() {
-            self.set(row_dst, col, self.get(row_dst, col) + val * self.get(row_src, col));
+            self.set(
+                row_dst,
+                col,
+                self.get(row_dst, col) + val * self.get(row_src, col),
+            );
         }
     }
 
@@ -123,7 +143,7 @@ impl<T: Field> Matrix<T> {
                 }
             }
         }
-    
-        matrix.hpick(&(d..2*d).collect::<Vec<usize>>())
+
+        matrix.hpick(&(d..2 * d).collect::<Vec<usize>>())
     }
 }

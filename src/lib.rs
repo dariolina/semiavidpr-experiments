@@ -1,26 +1,22 @@
-use ark_ff::fields::{Field, PrimeField, FpParameters};
-use ark_ec::{ProjectiveCurve, AffineCurve, PairingEngine};
+use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
+use ark_ff::fields::{Field, FpParameters, PrimeField};
 use ark_poly::{
-    Polynomial, UVPolynomial,
-    EvaluationDomain, GeneralEvaluationDomain,
-    polynomial::univariate::{DensePolynomial},
-    evaluations::univariate::{Evaluations},
+    evaluations::univariate::Evaluations, polynomial::univariate::DensePolynomial,
+    EvaluationDomain, GeneralEvaluationDomain, Polynomial, UVPolynomial,
 };
 use ark_poly_commit::{
+    kzg10::{Commitment, Powers, Proof, Randomness, VerifierKey, KZG10},
     PCRandomness,
-    kzg10::{KZG10, Powers, VerifierKey, Commitment, Proof, Randomness},
 };
-use ark_std::{Zero, One, UniformRand, start_timer, end_timer};
+use ark_std::{end_timer, start_timer, One, UniformRand, Zero};
 
-use rand::{Rng};
-
+use rand::Rng;
 
 mod utils;
-use crate::utils::{Matrix};
+use crate::utils::Matrix;
 
 #[cfg(test)]
 mod tests;
-
 
 #[allow(non_snake_case)]
 pub struct SemiAvidPr<'a, E: PairingEngine> {
@@ -35,7 +31,6 @@ pub struct SemiAvidPr<'a, E: PairingEngine> {
     kzg10_vk: VerifierKey<E>,
 }
 
-
 impl<E: PairingEngine> SemiAvidPr<'_, E> {
     #[allow(non_snake_case)]
     pub fn setup<R: Rng + ?Sized>(mut rng: &mut R, n: usize, k: usize, L: usize) -> Self {
@@ -43,17 +38,20 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         assert!(L.is_power_of_two());
 
         let timer = start_timer!(|| "Creating evaluation domains");
-        let domain_polycommit: GeneralEvaluationDomain<E::Fr> = ark_poly::domain::EvaluationDomain::<E::Fr>::new(L).unwrap();
-        let domain_encoding: GeneralEvaluationDomain<E::Fr> = ark_poly::domain::EvaluationDomain::<E::Fr>::new(n).unwrap();
+        let domain_polycommit: GeneralEvaluationDomain<E::Fr> =
+            ark_poly::domain::EvaluationDomain::<E::Fr>::new(L).unwrap();
+        let domain_encoding: GeneralEvaluationDomain<E::Fr> =
+            ark_poly::domain::EvaluationDomain::<E::Fr>::new(n).unwrap();
         end_timer!(timer);
 
         let timer = start_timer!(|| "KZG setup and preprocessing of setup");
-        let kzg10_pp = KZG10::<E, DensePolynomial<E::Fr>>::setup(L+k-1, false, &mut rng).unwrap();
+        let kzg10_pp =
+            KZG10::<E, DensePolynomial<E::Fr>>::setup(L + k - 1, false, &mut rng).unwrap();
 
         // https://github.com/arkworks-rs/poly-commit/blob/4d78d534cb55a9b13f34dd76b9702cae3ab2a2a1/src/kzg10/mod.rs#L459
         let (kzg10_ck, kzg10_vk) = {
-            let powers_of_g = kzg10_pp.powers_of_g[..=(L+k-1)].to_vec();
-            let powers_of_gamma_g = (0..=(L+k-1))
+            let powers_of_g = kzg10_pp.powers_of_g[..=(L + k - 1)].to_vec();
+            let powers_of_gamma_g = (0..=(L + k - 1))
                 .map(|i| kzg10_pp.powers_of_gamma_g[&i])
                 .collect();
 
@@ -75,7 +73,9 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         end_timer!(timer);
 
         Self {
-            n, k, L,
+            n,
+            k,
+            L,
 
             domain_polycommit,
             domain_encoding,
@@ -84,7 +84,6 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
             kzg10_vk,
         }
     }
-
 
     pub fn get_filesize(&self) -> usize {
         (<E::Fr as PrimeField>::Params::CAPACITY as usize) * self.k * self.L
@@ -95,25 +94,24 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
     }
 
     pub fn get_num_column_commitments(&self) -> usize {
-        return self.k
+        return self.k;
     }
 
     pub fn get_num_row_encodings(&self) -> usize {
-        return self.L
+        return self.L;
     }
 
     pub fn get_num_chunk_verifications(&self) -> usize {
-        return self.n
+        return self.n;
     }
 
     pub fn get_num_downloaded_chunk_verifications(&self) -> usize {
-        return self.k
+        return self.k;
     }
 
     pub fn get_num_row_decodings(&self) -> usize {
-        return self.L
+        return self.L;
     }
-
 
     pub fn generate_random_file<R: Rng + ?Sized>(&self, mut rng: &mut R) -> Vec<Vec<E::Fr>> {
         let mut data = vec![vec![E::Fr::zero(); self.k]; self.L];
@@ -129,36 +127,47 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         data
     }
 
-
-    fn unwrap_commitment(c: (Commitment<E>, Randomness<E::Fr, DensePolynomial<E::Fr>>)) -> E::G1Affine {
-        c.0.0
+    fn unwrap_commitment(
+        c: (Commitment<E>, Randomness<E::Fr, DensePolynomial<E::Fr>>),
+    ) -> E::G1Affine {
+        c.0 .0
     }
 
-    fn wrap_commitment(c: E::G1Affine) -> (Commitment<E>, Randomness<E::Fr, DensePolynomial<E::Fr>>) {
-        (Commitment::<E>(c), Randomness::<E::Fr, DensePolynomial<E::Fr>>::empty())
+    fn wrap_commitment(
+        c: E::G1Affine,
+    ) -> (Commitment<E>, Randomness<E::Fr, DensePolynomial<E::Fr>>) {
+        (
+            Commitment::<E>(c),
+            Randomness::<E::Fr, DensePolynomial<E::Fr>>::empty(),
+        )
     }
-
 
     fn commit_column(&self, data: &Vec<Vec<E::Fr>>, idx: usize) -> E::G1Affine {
         let timer = start_timer!(|| "Poly evaluations and interpolation");
-        let poly_evals = Evaluations::from_vec_and_domain(data.iter().map(|r| r[idx]).collect(), self.domain_polycommit);
+        let poly_evals = Evaluations::from_vec_and_domain(
+            data.iter().map(|r| r[idx]).collect(),
+            self.domain_polycommit,
+        );
         let poly_poly = poly_evals.interpolate();
         end_timer!(timer);
-        
+
         let timer = start_timer!(|| "KZG commitment");
-        let commitment = Self::unwrap_commitment(KZG10::commit(&self.kzg10_ck, &poly_poly, None, None).unwrap());
+        let commitment =
+            Self::unwrap_commitment(KZG10::commit(&self.kzg10_ck, &poly_poly, None, None).unwrap());
         end_timer!(timer);
 
         commitment
     }
-
 
     fn encode_commitments(&self, column_commitments: &Vec<E::G1Affine>, idx: usize) -> E::G1Affine {
         let timer = start_timer!(|| "'Encoding' of KZG column commitments");
         let mut commitment = E::G1Projective::zero();
         for j in 0..self.k {
             let j_in_field = E::Fr::from_le_bytes_mod_order(&j.to_le_bytes());
-            let eval_exponent = self.domain_encoding.element(idx).pow(j_in_field.into_repr());
+            let eval_exponent = self
+                .domain_encoding
+                .element(idx)
+                .pow(j_in_field.into_repr());
             commitment += column_commitments[j].mul(eval_exponent);
         }
         let commitment = commitment.into_affine();
@@ -166,48 +175,57 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
 
         commitment
     }
-    fn lagrange(&self, i:usize, idx:usize)->E::Fr{
-        if idx==i{
-           return E::Fr::one()
+    fn lagrange(&self, i: usize, idx: usize) -> E::Fr {
+        if idx == i {
+            return E::Fr::one();
         }
         E::Fr::zero()
     }
 
-    fn barycentric(&self,j:usize, idx:usize)->E::Fr{
-        
-        let d = self.k-1;
+    fn barycentric(&self, j: usize, idx: usize) -> E::Fr {
+        let d = self.k - 1;
         let d_in_field = E::Fr::from_le_bytes_mod_order(&d.to_le_bytes());
-        let bary_coef = (self.domain_encoding.element(idx).pow(d_in_field.into_repr())-self.domain_encoding.element(1))/self.domain_encoding.element(d);
+        let bary_coef = (self
+            .domain_encoding
+            .element(idx)
+            .pow(d_in_field.into_repr())
+            - self.domain_encoding.element(1))
+            / self.domain_encoding.element(d);
 
-        (self.domain_encoding.element(j)/(self.domain_encoding.element(idx)-self.domain_encoding.element(j)))*bary_coef
-        
+        (self.domain_encoding.element(j)
+            / (self.domain_encoding.element(idx) - self.domain_encoding.element(j)))
+            * bary_coef
     }
 
-    fn encode_commitments_systematic(&self, column_commitments: &Vec<E::G1Affine>, idx: usize) -> E::G1Affine {
+    fn encode_commitments_systematic(
+        &self,
+        column_commitments: &Vec<E::G1Affine>,
+        idx: usize,
+    ) -> E::G1Affine {
         let timer = start_timer!(|| "'Encoding' of KZG column commitments");
         let mut commitment = E::G1Projective::zero();
 
-        if idx >=self.k{
+        if idx >= self.k {
             for j in 0..self.k {
                 let coef = self.barycentric(j, idx);
                 commitment += column_commitments[j].mul(coef);
             }
-        }
-        else if idx <self.k{
+        } else if idx < self.k {
             for j in 0..self.k {
                 let coef = self.lagrange(j, idx);
                 commitment += column_commitments[j].mul(coef);
             }
         }
-        
+
         end_timer!(timer);
         let commitment = commitment.into_affine();
         commitment
     }
-    
-    
 
-    pub fn disperse_compute_column_commitments(&self, data_uncoded: &Vec<Vec<E::Fr>>) -> Vec<E::G1Affine> {
+    pub fn disperse_compute_column_commitments(
+        &self,
+        data_uncoded: &Vec<Vec<E::Fr>>,
+    ) -> Vec<E::G1Affine> {
         let mut column_commitments = Vec::new();
 
         let timer_outer = start_timer!(|| "Computing column commitments");
@@ -223,7 +241,6 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
 
         column_commitments
     }
-
 
     pub fn disperse_encode_rows(&self, data_uncoded: &Vec<Vec<E::Fr>>) -> Vec<Vec<E::Fr>> {
         let mut data_coded = Vec::new();
@@ -243,17 +260,24 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         data_coded
     }
 
-    pub fn disperse_encode_rows_systematic(&self, data_uncoded: &Vec<Vec<E::Fr>>) -> Vec<Vec<E::Fr>> {
+    pub fn disperse_encode_rows_systematic(
+        &self,
+        data_uncoded: &Vec<Vec<E::Fr>>,
+    ) -> Vec<Vec<E::Fr>> {
         let mut data_coded = Vec::new();
 
         let timer_outer = start_timer!(|| "Encoding rows");
-        let domain_uncoded: GeneralEvaluationDomain<E::Fr> = ark_poly::domain::EvaluationDomain::<E::Fr>::new(self.k).unwrap();
+        let domain_uncoded: GeneralEvaluationDomain<E::Fr> =
+            ark_poly::domain::EvaluationDomain::<E::Fr>::new(self.k).unwrap();
         for j in 0..self.L {
             let timer_inner = start_timer!(|| format!("Row {}", j));
             //assert expected length of source data
             //assert_eq!(data_uncoded[j].len(), self.k);
 
-            let mut poly_evals = Evaluations::from_vec_and_domain(data_uncoded[j].iter().copied().collect(), domain_uncoded);
+            let mut poly_evals = Evaluations::from_vec_and_domain(
+                data_uncoded[j].iter().copied().collect(),
+                domain_uncoded,
+            );
             let poly_poly = poly_evals.interpolate();
             //assert expected degree of interpolated polynomial
             //assert_eq!(poly_poly.degree(), self.k-1);
@@ -264,14 +288,13 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
 
             //assert expected length of erasure coded data
             assert_eq!(data_coded[j].len(), self.n);
-            
 
             end_timer!(timer_inner);
         }
         end_timer!(timer_outer);
 
         //assert uncoded data matches the even indices of coded
-       // assert_eq!(data_coded[0][0], data_uncoded[0][0]);
+        // assert_eq!(data_coded[0][0], data_uncoded[0][0]);
         //assert_eq!(data_coded[0][2], data_uncoded[0][1]);
 
         data_coded
@@ -281,20 +304,18 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         let mut data_coded = Vec::new();
 
         for row in 0..self.L {
-
             let mut poly_evals = Vec::new();
-            for idx in 0..self.n{
+            for idx in 0..self.n {
                 let mut eval = E::Fr::zero();
-                if idx >=self.k{
+                if idx >= self.k {
                     for j in 0..self.k {
                         let coef = self.barycentric(j, idx);
-                        eval += data_uncoded[row][j]*coef;
+                        eval += data_uncoded[row][j] * coef;
                     }
-                }
-                else if idx <self.k{
+                } else if idx < self.k {
                     for j in 0..self.k {
                         let coef = self.lagrange(j, idx);
-                        eval += data_uncoded[row][j]*coef;
+                        eval += data_uncoded[row][j] * coef;
                     }
                 }
                 poly_evals.push(eval);
@@ -303,25 +324,27 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
             data_coded.push(poly_evals);
 
             //assert expected length of erasure coded data
-            assert_eq!(data_coded[row].len(), self.n);  
-
+            assert_eq!(data_coded[row].len(), self.n);
         }
 
         //assert uncoded data matches the even indices of coded
-       // assert_eq!(data_coded[0][0], data_uncoded[0][0]);
+        // assert_eq!(data_coded[0][0], data_uncoded[0][0]);
         //assert_eq!(data_coded[0][2], data_uncoded[0][1]);
 
         data_coded
     }
 
-    pub fn disperse_verify_chunks(&self, column_commitments: &Vec<E::G1Affine>, data_coded: &Vec<Vec<E::Fr>>) -> bool {
+    pub fn disperse_verify_chunks(
+        &self,
+        column_commitments: &Vec<E::G1Affine>,
+        data_coded: &Vec<Vec<E::Fr>>,
+    ) -> bool {
         let timer_outer = start_timer!(|| "Checking coded columns");
         for i in 0..self.n {
             let timer_inner = start_timer!(|| format!("Column {}", i));
 
             let commitment = self.commit_column(&data_coded, i);
             let commitment_check = self.encode_commitments(&column_commitments, i);
-            
 
             if commitment != commitment_check {
                 return false;
@@ -333,16 +356,21 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
 
         true
     }
-    pub fn disperse_verify_chunks_systematic(&self, source_column_commitments: &Vec<E::G1Affine>, data_coded: &Vec<Vec<E::Fr>>) -> bool {
+    pub fn disperse_verify_chunks_systematic(
+        &self,
+        source_column_commitments: &Vec<E::G1Affine>,
+        data_coded: &Vec<Vec<E::Fr>>,
+    ) -> bool {
         let timer_outer = start_timer!(|| "Checking coded columns");
         for i in 0..self.n {
             let timer_inner = start_timer!(|| format!("Column {}", i));
 
             let commitment = self.commit_column(&data_coded, i);
-            let commitment_interp = self.encode_commitments_systematic(&source_column_commitments, i);
-            
+            let commitment_interp =
+                self.encode_commitments_systematic(&source_column_commitments, i);
+
             if commitment != commitment_interp {
-                return false
+                return false;
             }
 
             end_timer!(timer_inner);
@@ -352,23 +380,42 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         true
     }
 
-    pub fn retrieve_download_chunks(&self, data_coded: &Vec<Vec<E::Fr>>, idxs_download_nodes: &Vec<usize>) -> Vec<Vec<E::Fr>> {
+    pub fn retrieve_download_chunks(
+        &self,
+        data_coded: &Vec<Vec<E::Fr>>,
+        idxs_download_nodes: &Vec<usize>,
+    ) -> Vec<Vec<E::Fr>> {
         let timer = start_timer!(|| "Downloading chunks");
-        let data_coded_downloaded = data_coded.iter().map(|r| idxs_download_nodes.iter().map(|&i| r[i]).collect()).collect();
+        let data_coded_downloaded = data_coded
+            .iter()
+            .map(|r| idxs_download_nodes.iter().map(|&i| r[i]).collect())
+            .collect();
         end_timer!(timer);
 
         data_coded_downloaded
     }
 
-
-    pub fn retrieve_verify_chunks(&self, column_commitments: &Vec<E::G1Affine>, data_coded_downloaded: &Vec<Vec<E::Fr>>, idxs_download_nodes: &Vec<usize>) -> bool {
+    pub fn retrieve_verify_chunks(
+        &self,
+        column_commitments: &Vec<E::G1Affine>,
+        data_coded_downloaded: &Vec<Vec<E::Fr>>,
+        idxs_download_nodes: &Vec<usize>,
+    ) -> bool {
         let timer_all = start_timer!(|| "Verifying downloaded chunks");
 
-        let timer_encode_commitments = start_timer!(|| "'Encoding' of column commitments to coded chunk commitments");
-        let mut column_commitments_projective: Vec<E::G1Projective> = column_commitments.iter().map(|h| h.clone().into()).collect();
+        let timer_encode_commitments =
+            start_timer!(|| "'Encoding' of column commitments to coded chunk commitments");
+        let mut column_commitments_projective: Vec<E::G1Projective> = column_commitments
+            .iter()
+            .map(|h| h.clone().into())
+            .collect();
         column_commitments_projective.resize(self.domain_encoding.size(), E::G1Projective::zero());
-        self.domain_encoding.fft_in_place(&mut column_commitments_projective);
-        let coded_chunk_commitments_affine: Vec<E::G1Affine> = column_commitments_projective.iter().map(|h| h.into_affine()).collect();
+        self.domain_encoding
+            .fft_in_place(&mut column_commitments_projective);
+        let coded_chunk_commitments_affine: Vec<E::G1Affine> = column_commitments_projective
+            .iter()
+            .map(|h| h.into_affine())
+            .collect();
         end_timer!(timer_encode_commitments);
 
         let timer_outer = start_timer!(|| "Checking downloaded coded columns");
@@ -393,7 +440,6 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         end_timer!(timer_all);
         true
     }
-    
 
     pub fn retrieve_prepare_decoding(&self, idxs_download_nodes: &Vec<usize>) -> Matrix<E::Fr> {
         assert!(idxs_download_nodes.len() == self.k);
@@ -401,14 +447,22 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         let mut matrix = Vec::new();
         for i in 0..self.k {
             let i_in_field = E::Fr::from_le_bytes_mod_order(&i.to_le_bytes());
-            matrix.push(idxs_download_nodes.iter().map(|&j| self.domain_encoding.element(j).pow(i_in_field.into_repr())).collect());
+            matrix.push(
+                idxs_download_nodes
+                    .iter()
+                    .map(|&j| self.domain_encoding.element(j).pow(i_in_field.into_repr()))
+                    .collect(),
+            );
         }
 
         Matrix::from_nested_vec(self.k, self.k, matrix).invert()
     }
 
-    
-    pub fn retrieve_decode_rows(&self, data_coded_downloaded: &Vec<Vec<E::Fr>>, decoder_aux: &Matrix<E::Fr>) -> Vec<Vec<E::Fr>> {
+    pub fn retrieve_decode_rows(
+        &self,
+        data_coded_downloaded: &Vec<Vec<E::Fr>>,
+        decoder_aux: &Matrix<E::Fr>,
+    ) -> Vec<Vec<E::Fr>> {
         assert!(decoder_aux.height() == decoder_aux.width());
         let mut data_decoded = Vec::new();
 
@@ -417,7 +471,15 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
             let timer_inner = start_timer!(|| format!("Row {}", j));
 
             assert!(data_coded_downloaded[j].len() == decoder_aux.height());
-            data_decoded.push((0..decoder_aux.width()).map(|col| (0..decoder_aux.height()).map(|row| decoder_aux.get(row, col) * data_coded_downloaded[j][row]).sum::<E::Fr>()).collect());
+            data_decoded.push(
+                (0..decoder_aux.width())
+                    .map(|col| {
+                        (0..decoder_aux.height())
+                            .map(|row| decoder_aux.get(row, col) * data_coded_downloaded[j][row])
+                            .sum::<E::Fr>()
+                    })
+                    .collect(),
+            );
 
             end_timer!(timer_inner);
         }
@@ -426,10 +488,18 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         data_decoded
     }
 
-
-    pub fn sampling_open_entry(&self, column_commitments: &Vec<E::G1Affine>, data_uncoded: &Vec<Vec<E::Fr>>, row: usize, col: usize) -> (E::Fr, usize, usize, Vec<E::G1Affine>, Proof<E>) {
+    pub fn sampling_open_entry(
+        &self,
+        column_commitments: &Vec<E::G1Affine>,
+        data_uncoded: &Vec<Vec<E::Fr>>,
+        row: usize,
+        col: usize,
+    ) -> (E::Fr, usize, usize, Vec<E::G1Affine>, Proof<E>) {
         let timer = start_timer!(|| "Poly evaluations and interpolation");
-        let poly_evals = Evaluations::from_vec_and_domain(data_uncoded.iter().map(|r| r[col]).collect(), self.domain_polycommit);
+        let poly_evals = Evaluations::from_vec_and_domain(
+            data_uncoded.iter().map(|r| r[col]).collect(),
+            self.domain_polycommit,
+        );
         let poly_poly = poly_evals.interpolate();
         end_timer!(timer);
 
@@ -441,22 +511,48 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         let divisor = DensePolynomial::<E::Fr>::from_coefficients_vec(vec![-point, E::Fr::one()]);
         let witness_polynomial = &poly_poly / &divisor;
         assert!(witness_polynomial.degree() + 1 <= self.kzg10_ck.size());
-        let proof = Self::unwrap_commitment(KZG10::commit(&self.kzg10_ck, &witness_polynomial, None, None).unwrap());
-        let proof = Proof { w: proof, random_v: None };
+        let proof = Self::unwrap_commitment(
+            KZG10::commit(&self.kzg10_ck, &witness_polynomial, None, None).unwrap(),
+        );
+        let proof = Proof {
+            w: proof,
+            random_v: None,
+        };
         // <<< ... end of inline!
         end_timer!(timer);
 
-        (data_uncoded[row][col], row, col, column_commitments.clone(), proof)
+        (
+            data_uncoded[row][col],
+            row,
+            col,
+            column_commitments.clone(),
+            proof,
+        )
     }
 
-
-    pub fn sampling_verify_entry(&self, (value, row, col, column_commitments, proof): (E::Fr, usize, usize, Vec<E::G1Affine>, Proof<E>)) -> bool {
+    pub fn sampling_verify_entry(
+        &self,
+        (value, row, col, column_commitments, proof): (
+            E::Fr,
+            usize,
+            usize,
+            Vec<E::G1Affine>,
+            Proof<E>,
+        ),
+    ) -> bool {
         let timer = start_timer!(|| "KZG check");
         let commitment = Self::wrap_commitment(column_commitments[col]).0;
         let point = self.domain_polycommit.element(row);
-        let ret_val = KZG10::<E, DensePolynomial::<E::Fr>>::check(&self.kzg10_vk, &commitment, point, value, &proof).unwrap();
+        let ret_val = KZG10::<E, DensePolynomial<E::Fr>>::check(
+            &self.kzg10_vk,
+            &commitment,
+            point,
+            value,
+            &proof,
+        )
+        .unwrap();
         end_timer!(timer);
-        
+
         ret_val
     }
 }
