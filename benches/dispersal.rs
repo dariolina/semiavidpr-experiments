@@ -50,7 +50,7 @@ fn bench_disperse_encode_rows<E: PairingEngine + CurveName>(c: &mut Criterion) {
             group.bench_with_input(format!("n={} L={}", n, L), &(n, L), |b, (_n, _L)| {
                 let file_uncoded = scheme.generate_random_file(&mut rng);
                 b.iter(|| {
-                    black_box(scheme.disperse_encode_rows(&file_uncoded));
+                    black_box(scheme.disperse_encode_rows_lagrange(&file_uncoded));
                 })
             });
         }

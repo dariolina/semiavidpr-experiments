@@ -287,7 +287,7 @@ fn run_dispersal_experiment<R: Rng + ?Sized, E: PairingEngine>(
     // encode rows
 
     let timer_begin = Instant::now();
-    let file_coded = scheme.disperse_encode_rows(&file_uncoded);
+    let file_coded = scheme.disperse_encode_rows_lagrange(&file_uncoded);
     measurements.runtime_all_row_encodings_seconds = timer_begin.elapsed().as_secs_f64();
     measurements.runtime_per_row_encoding_seconds =
         measurements.runtime_all_row_encodings_seconds / (measurements.num_row_encodings as f64);
@@ -295,7 +295,7 @@ fn run_dispersal_experiment<R: Rng + ?Sized, E: PairingEngine>(
     // verify chunks
 
     let timer_begin = Instant::now();
-    if !scheme.disperse_verify_chunks(&column_commitments, &file_coded) {
+    if !scheme.disperse_verify_chunks_systematic(&column_commitments, &file_coded) {
         panic!("Verification of chunks should not fail!");
     }
     measurements.runtime_all_chunk_verifications_seconds = timer_begin.elapsed().as_secs_f64();

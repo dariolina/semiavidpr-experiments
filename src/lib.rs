@@ -159,22 +159,23 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         commitment
     }
 
-    fn encode_commitments(&self, column_commitments: &Vec<E::G1Affine>, idx: usize) -> E::G1Affine {
-        let timer = start_timer!(|| "'Encoding' of KZG column commitments");
-        let mut commitment = E::G1Projective::zero();
-        for j in 0..self.k {
-            let j_in_field = E::Fr::from_le_bytes_mod_order(&j.to_le_bytes());
-            let eval_exponent = self
-                .domain_encoding
-                .element(idx)
-                .pow(j_in_field.into_repr());
-            commitment += column_commitments[j].mul(eval_exponent);
-        }
-        let commitment = commitment.into_affine();
-        end_timer!(timer);
+    // fn encode_commitments(&self, column_commitments: &Vec<E::G1Affine>, idx: usize) -> E::G1Affine {
+    //     let timer = start_timer!(|| "'Encoding' of KZG column commitments");
+    //     let mut commitment = E::G1Projective::zero();
+    //     for j in 0..self.k {
+    //         let j_in_field = E::Fr::from_le_bytes_mod_order(&j.to_le_bytes());
+    //         let eval_exponent = self
+    //             .domain_encoding
+    //             .element(idx)
+    //             .pow(j_in_field.into_repr());
+    //         commitment += column_commitments[j].mul(eval_exponent);
+    //     }
+    //     let commitment = commitment.into_affine();
+    //     end_timer!(timer);
+    //
+    //     commitment
+    // }
 
-        commitment
-    }
     fn lagrange(&self, i: usize, idx: usize) -> E::Fr {
         if idx == i {
             return E::Fr::one();
@@ -242,63 +243,63 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         column_commitments
     }
 
-    pub fn disperse_encode_rows(&self, data_uncoded: &Vec<Vec<E::Fr>>) -> Vec<Vec<E::Fr>> {
-        let mut data_coded = Vec::new();
+    // pub fn disperse_encode_rows(&self, data_uncoded: &Vec<Vec<E::Fr>>) -> Vec<Vec<E::Fr>> {
+    //     let mut data_coded = Vec::new();
+    //
+    //     let timer_outer = start_timer!(|| "Encoding rows");
+    //     for j in 0..self.L {
+    //         let timer_inner = start_timer!(|| format!("Row {}", j));
+    //
+    //         let poly_poly = DensePolynomial::<E::Fr>::from_coefficients_slice(&data_uncoded[j]);
+    //         let poly_evals = poly_poly.evaluate_over_domain(self.domain_encoding);
+    //         data_coded.push(poly_evals.evals);
+    //
+    //         end_timer!(timer_inner);
+    //     }
+    //     end_timer!(timer_outer);
+    //
+    //     data_coded
+    // }
 
-        let timer_outer = start_timer!(|| "Encoding rows");
-        for j in 0..self.L {
-            let timer_inner = start_timer!(|| format!("Row {}", j));
-
-            let poly_poly = DensePolynomial::<E::Fr>::from_coefficients_slice(&data_uncoded[j]);
-            let poly_evals = poly_poly.evaluate_over_domain(self.domain_encoding);
-            data_coded.push(poly_evals.evals);
-
-            end_timer!(timer_inner);
-        }
-        end_timer!(timer_outer);
-
-        data_coded
-    }
-
-    pub fn disperse_encode_rows_systematic(
-        &self,
-        data_uncoded: &Vec<Vec<E::Fr>>,
-    ) -> Vec<Vec<E::Fr>> {
-        let mut data_coded = Vec::new();
-
-        let timer_outer = start_timer!(|| "Encoding rows");
-        let domain_uncoded: GeneralEvaluationDomain<E::Fr> =
-            ark_poly::domain::EvaluationDomain::<E::Fr>::new(self.k).unwrap();
-        for j in 0..self.L {
-            let timer_inner = start_timer!(|| format!("Row {}", j));
-            //assert expected length of source data
-            //assert_eq!(data_uncoded[j].len(), self.k);
-
-            let mut poly_evals = Evaluations::from_vec_and_domain(
-                data_uncoded[j].iter().copied().collect(),
-                domain_uncoded,
-            );
-            let poly_poly = poly_evals.interpolate();
-            //assert expected degree of interpolated polynomial
-            //assert_eq!(poly_poly.degree(), self.k-1);
-
-            poly_evals = poly_poly.evaluate_over_domain(self.domain_encoding);
-
-            data_coded.push(poly_evals.evals);
-
-            //assert expected length of erasure coded data
-            assert_eq!(data_coded[j].len(), self.n);
-
-            end_timer!(timer_inner);
-        }
-        end_timer!(timer_outer);
-
-        //assert uncoded data matches the even indices of coded
-        // assert_eq!(data_coded[0][0], data_uncoded[0][0]);
-        //assert_eq!(data_coded[0][2], data_uncoded[0][1]);
-
-        data_coded
-    }
+    // pub fn disperse_encode_rows_systematic(
+    //     &self,
+    //     data_uncoded: &Vec<Vec<E::Fr>>,
+    // ) -> Vec<Vec<E::Fr>> {
+    //     let mut data_coded = Vec::new();
+    //
+    //     let timer_outer = start_timer!(|| "Encoding rows");
+    //     let domain_uncoded: GeneralEvaluationDomain<E::Fr> =
+    //         ark_poly::domain::EvaluationDomain::<E::Fr>::new(self.k).unwrap();
+    //     for j in 0..self.L {
+    //         let timer_inner = start_timer!(|| format!("Row {}", j));
+    //         //assert expected length of source data
+    //         //assert_eq!(data_uncoded[j].len(), self.k);
+    //
+    //         let mut poly_evals = Evaluations::from_vec_and_domain(
+    //             data_uncoded[j].iter().copied().collect(),
+    //             domain_uncoded,
+    //         );
+    //         let poly_poly = poly_evals.interpolate();
+    //         //assert expected degree of interpolated polynomial
+    //         //assert_eq!(poly_poly.degree(), self.k-1);
+    //
+    //         poly_evals = poly_poly.evaluate_over_domain(self.domain_encoding);
+    //
+    //         data_coded.push(poly_evals.evals);
+    //
+    //         //assert expected length of erasure coded data
+    //         assert_eq!(data_coded[j].len(), self.n);
+    //
+    //         end_timer!(timer_inner);
+    //     }
+    //     end_timer!(timer_outer);
+    //
+    //     //assert uncoded data matches the even indices of coded
+    //     // assert_eq!(data_coded[0][0], data_uncoded[0][0]);
+    //     //assert_eq!(data_coded[0][2], data_uncoded[0][1]);
+    //
+    //     data_coded
+    // }
 
     pub fn disperse_encode_rows_lagrange(&self, data_uncoded: &Vec<Vec<E::Fr>>) -> Vec<Vec<E::Fr>> {
         let mut data_coded = Vec::new();
@@ -334,28 +335,28 @@ impl<E: PairingEngine> SemiAvidPr<'_, E> {
         data_coded
     }
 
-    pub fn disperse_verify_chunks(
-        &self,
-        column_commitments: &Vec<E::G1Affine>,
-        data_coded: &Vec<Vec<E::Fr>>,
-    ) -> bool {
-        let timer_outer = start_timer!(|| "Checking coded columns");
-        for i in 0..self.n {
-            let timer_inner = start_timer!(|| format!("Column {}", i));
-
-            let commitment = self.commit_column(&data_coded, i);
-            let commitment_check = self.encode_commitments(&column_commitments, i);
-
-            if commitment != commitment_check {
-                return false;
-            }
-
-            end_timer!(timer_inner);
-        }
-        end_timer!(timer_outer);
-
-        true
-    }
+    // pub fn disperse_verify_chunks(
+    //     &self,
+    //     column_commitments: &Vec<E::G1Affine>,
+    //     data_coded: &Vec<Vec<E::Fr>>,
+    // ) -> bool {
+    //     let timer_outer = start_timer!(|| "Checking coded columns");
+    //     for i in 0..self.n {
+    //         let timer_inner = start_timer!(|| format!("Column {}", i));
+    //
+    //         let commitment = self.commit_column(&data_coded, i);
+    //         let commitment_check = self.encode_commitments(&column_commitments, i);
+    //
+    //         if commitment != commitment_check {
+    //             return false;
+    //         }
+    //
+    //         end_timer!(timer_inner);
+    //     }
+    //     end_timer!(timer_outer);
+    //
+    //     true
+    // }
     pub fn disperse_verify_chunks_systematic(
         &self,
         source_column_commitments: &Vec<E::G1Affine>,
