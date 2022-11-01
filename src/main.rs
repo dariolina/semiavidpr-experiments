@@ -1,9 +1,6 @@
-extern crate semiavidpr;
 use semiavidpr::SemiAvidPr;
 
-use ark_bls12_381::Bls12_381;
-use ark_bn254::Bn254;
-use ark_ec::PairingEngine;
+use ark_bls12_381::{Fr, G1Affine};
 
 use clap::{ArgEnum, ErrorKind, IntoApp, Parser};
 use rand::Rng;
@@ -35,14 +32,12 @@ struct Args {
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ArgEnum, Debug)]
 enum CurveArg {
     Bls12_381,
-    Bn254,
 }
 
 impl std::fmt::Display for CurveArg {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CurveArg::Bls12_381 => write!(f, "bls12-381"),
-            CurveArg::Bn254 => write!(f, "bn254"),
         }
     }
 }
@@ -244,7 +239,7 @@ impl core::ops::Div<usize> for Measurements {
 // }
 
 #[allow(non_snake_case)]
-fn run_dispersal_experiment<R: Rng + ?Sized, E: PairingEngine>(
+fn run_dispersal_experiment<R: Rng + ?Sized>(
     mut rng: &mut R,
     n: usize,
     k: usize,
@@ -258,7 +253,7 @@ fn run_dispersal_experiment<R: Rng + ?Sized, E: PairingEngine>(
     // setup
 
     let timer_begin = Instant::now();
-    let scheme = SemiAvidPr::<E>::setup(&mut rng, n, k, L);
+    let scheme = SemiAvidPr::setup(&mut rng, n, k, L);
     measurements.runtime_setup_seconds = timer_begin.elapsed().as_secs_f64();
 
     measurements.net_file_size_bytes = scheme.get_filesize_in_bytes() as usize;
@@ -309,9 +304,9 @@ fn run_dispersal_experiment<R: Rng + ?Sized, E: PairingEngine>(
 
     // BOOKKEEPING
 
-    measurements.size_file_uncoded_bytes = std::mem::size_of::<E::Fr>() * k * L;
-    measurements.size_column_commitments_bytes = std::mem::size_of::<E::G1Affine>() * k;
-    measurements.size_file_coded_bytes = std::mem::size_of::<E::Fr>() * n * L;
+    measurements.size_file_uncoded_bytes = std::mem::size_of::<Fr>() * k * L;
+    measurements.size_column_commitments_bytes = std::mem::size_of::<G1Affine>() * k;
+    measurements.size_file_coded_bytes = std::mem::size_of::<Fr>() * n * L;
 
     measurements.scenario_disperse_runtime_client_seconds = measurements
         .runtime_all_column_commitments_seconds
@@ -385,13 +380,12 @@ fn run_dispersal_experiment<R: Rng + ?Sized, E: PairingEngine>(
             timer_begin.elapsed().as_secs_f64();
 
         measurements.scenario_sampling_runtime_proof_size_bytes = 0;
-        measurements.scenario_sampling_runtime_proof_size_bytes += std::mem::size_of::<E::Fr>(); // value
+        measurements.scenario_sampling_runtime_proof_size_bytes += std::mem::size_of::<Fr>(); // value
         measurements.scenario_sampling_runtime_proof_size_bytes += std::mem::size_of::<usize>(); // row
         measurements.scenario_sampling_runtime_proof_size_bytes += std::mem::size_of::<usize>(); // col
         measurements.scenario_sampling_runtime_proof_size_bytes +=
             measurements.size_column_commitments_bytes; // column_commitments
-        measurements.scenario_sampling_runtime_proof_size_bytes +=
-            std::mem::size_of::<E::G1Affine>(); // KZG proof
+        measurements.scenario_sampling_runtime_proof_size_bytes += std::mem::size_of::<G1Affine>(); // KZG proof
 
         let timer_begin = Instant::now();
         if !scheme.sampling_verify_entry(opening) {
@@ -430,10 +424,7 @@ fn main() {
         measurement = measurement
             + match args.curve {
                 CurveArg::Bls12_381 => {
-                    run_dispersal_experiment::<_, Bls12_381>(&mut rng, args.n, args.k, args.L)
-                }
-                CurveArg::Bn254 => {
-                    run_dispersal_experiment::<_, Bn254>(&mut rng, args.n, args.k, args.L)
+                    run_dispersal_experiment::<_>(&mut rng, args.n, args.k, args.L)
                 }
             };
     }
