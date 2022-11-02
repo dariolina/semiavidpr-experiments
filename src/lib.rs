@@ -184,7 +184,7 @@ impl SemiAvidPr<'_> {
     //     commitment
     // }
 
-    fn barycentric(&self, j: usize, idx: usize) -> Fr {
+    fn evaluate_barycentric(&self, j: usize, idx: usize) -> Fr {
         let d = self.uncoded_chunks - 1;
         let d_in_field = Fr::from_le_bytes_mod_order(&d.to_le_bytes());
         let bary_coef = (self
@@ -209,7 +209,7 @@ impl SemiAvidPr<'_> {
 
         if idx >= self.uncoded_chunks {
             for j in 0..self.uncoded_chunks {
-                let coef = self.barycentric(j, idx);
+                let coef = self.evaluate_barycentric(j, idx);
                 commitment += column_commitments[j].mul(coef);
             }
         } else {
@@ -311,7 +311,7 @@ impl SemiAvidPr<'_> {
             for idx in (0..self.coded_chunks).skip(self.uncoded_chunks) {
                 let mut eval = Fr::zero();
                 for j in 0..self.uncoded_chunks {
-                    let coef = self.barycentric(j, idx);
+                    let coef = self.evaluate_barycentric(j, idx);
                     eval += row[j] * coef;
                 }
                 poly_evals.push(eval);
