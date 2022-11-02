@@ -150,18 +150,66 @@ impl SemiAvidPr<'_> {
         )
     }
 
+    /// Create polynomial for data
+    pub fn create_polynomial(&self, data: Vec<Fr>) -> DensePolynomial<Fr> {
+        let poly_evals = Evaluations::from_vec_and_domain(data, self.domain_polycommit);
+        poly_evals.interpolate()
+    }
+
+    /// Create a witness at index of polynomial
+    pub fn create_witness_polynomial(
+        &self,
+        poly_poly: &DensePolynomial<Fr>,
+        idx: usize,
+    ) -> DensePolynomial<Fr> {
+        // let proof = KZG10::open(&self.kzg10_ck, &poly_poly, self.domain_polycommit.element(row), None).unwrap();
+        // Unfortunately, KZG10::open() is pub(crate) only, so inline ... >>>
+        let point = self.domain_polycommit.element(idx);
+        assert!(poly_poly.degree() + 1 <= self.kzg10_ck.size());
+        let divisor = DensePolynomial::<Fr>::from_coefficients_vec(vec![-point, Fr::one()]);
+        let witness_polynomial = poly_poly / &divisor;
+        assert!(witness_polynomial.degree() + 1 <= self.kzg10_ck.size());
+
+        witness_polynomial
+    }
+
+    /// Commit to polynomial
+    pub fn commit(&self, poly_poly: &DensePolynomial<Fr>) -> G1Affine {
+        Self::unwrap_commitment(KZG10::commit(&self.kzg10_ck, poly_poly, None, None).unwrap())
+    }
+
+    /// Verify witness commitment
+    pub fn verify(
+        &self,
+        data: Fr,
+        idx: usize,
+        commitment: G1Affine,
+        witness_commitment: G1Affine,
+    ) -> bool {
+        let commitment = Self::wrap_commitment(commitment).0;
+        let point = self.domain_polycommit.element(idx);
+        let proof = Proof {
+            w: witness_commitment,
+            random_v: None,
+        };
+        KZG10::<Bls12_381, DensePolynomial<Fr>>::check(
+            &self.kzg10_vk,
+            &commitment,
+            point,
+            data,
+            &proof,
+        )
+        .unwrap()
+    }
+
     fn commit_column(&self, data: &Vec<Vec<Fr>>, idx: usize) -> G1Affine {
         let timer = start_timer!(|| "Poly evaluations and interpolation");
-        let poly_evals = Evaluations::from_vec_and_domain(
-            data.iter().map(|r| r[idx]).collect(),
-            self.domain_polycommit,
-        );
-        let poly_poly = poly_evals.interpolate();
+        let column = data.iter().map(|r| r[idx]).collect();
+        let poly_poly = self.create_polynomial(column);
         end_timer!(timer);
 
         let timer = start_timer!(|| "KZG commitment");
-        let commitment =
-            Self::unwrap_commitment(KZG10::commit(&self.kzg10_ck, &poly_poly, None, None).unwrap());
+        let commitment = self.commit(&poly_poly);
         end_timer!(timer);
 
         commitment
@@ -492,26 +540,17 @@ impl SemiAvidPr<'_> {
         col: usize,
     ) -> (Fr, usize, usize, Vec<G1Affine>, Proof<Bls12_381>) {
         let timer = start_timer!(|| "Poly evaluations and interpolation");
-        let poly_evals = Evaluations::from_vec_and_domain(
-            data_uncoded.iter().map(|r| r[col]).collect(),
-            self.domain_polycommit,
-        );
-        let poly_poly = poly_evals.interpolate();
+        let column = data_uncoded.iter().map(|r| r[col]).collect();
+        let poly_poly = self.create_polynomial(column);
         end_timer!(timer);
 
         let timer = start_timer!(|| "KZG proof");
         // let proof = KZG10::open(&self.kzg10_ck, &poly_poly, self.domain_polycommit.element(row), None).unwrap();
         // Unfortunately, KZG10::open() is pub(crate) only, so inline ... >>>
-        let point = self.domain_polycommit.element(row);
-        assert!(poly_poly.degree() + 1 <= self.kzg10_ck.size());
-        let divisor = DensePolynomial::<Fr>::from_coefficients_vec(vec![-point, Fr::one()]);
-        let witness_polynomial = &poly_poly / &divisor;
-        assert!(witness_polynomial.degree() + 1 <= self.kzg10_ck.size());
-        let proof = Self::unwrap_commitment(
-            KZG10::commit(&self.kzg10_ck, &witness_polynomial, None, None).unwrap(),
-        );
+        let witness_polynomial = self.create_witness_polynomial(&poly_poly, row);
+        let witness_commitment = self.commit(&witness_polynomial);
         let proof = Proof {
-            w: proof,
+            w: witness_commitment,
             random_v: None,
         };
         // <<< ... end of inline!
@@ -537,16 +576,7 @@ impl SemiAvidPr<'_> {
         ),
     ) -> bool {
         let timer = start_timer!(|| "KZG check");
-        let commitment = Self::wrap_commitment(column_commitments[col]).0;
-        let point = self.domain_polycommit.element(row);
-        let ret_val = KZG10::<Bls12_381, DensePolynomial<Fr>>::check(
-            &self.kzg10_vk,
-            &commitment,
-            point,
-            value,
-            &proof,
-        )
-        .unwrap();
+        let ret_val = self.verify(value, row, column_commitments[col], proof.w);
         end_timer!(timer);
 
         ret_val

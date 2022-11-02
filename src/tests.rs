@@ -155,3 +155,31 @@ fn prototype_encoding_decoding() {
 
     assert_eq!(data_uncoded, data_uncoded_downloaded);
 }
+
+#[test]
+fn prototype_commit_prove_verify() {
+    let mut rng = rand::thread_rng();
+
+    let uncoded_chunks = 8;
+    let coded_chunks = 16;
+
+    let scheme = SemiAvidPr::setup(&mut rng, coded_chunks, uncoded_chunks, 32);
+
+    let data = scheme
+        .generate_random_file(&mut rng)
+        .into_iter()
+        .next()
+        .unwrap();
+
+    let polynomial = scheme.create_polynomial(data.clone());
+    let commitment = scheme.commit(&polynomial);
+
+    for (idx, d) in data.into_iter().enumerate() {
+        let witness_commitment = scheme.commit(&scheme.create_witness_polynomial(&polynomial, idx));
+
+        assert!(
+            scheme.verify(d, idx, commitment, witness_commitment),
+            "Idx {idx}"
+        );
+    }
+}
