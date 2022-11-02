@@ -12,7 +12,7 @@ fn test_kzg_commit_bls12_381() {
     let scheme = SemiAvidPr::setup(&mut rng, 16, 8, 1024);
     let data_uncoded = scheme.generate_random_file(&mut rng);
 
-    for i in 0..scheme.k {
+    for i in 0..scheme.uncoded_chunks {
         // internal method
         let commitment1 = scheme.commit_column(&data_uncoded, i);
 
@@ -81,7 +81,7 @@ fn test_commit_commit1_bls12_381() {
     let mut comm_root2 = G1Projective::zero();
 
     //i iterates columns
-    for i in 0..scheme.k {
+    for i in 0..scheme.uncoded_chunks {
         let poly_evals = Evaluations::from_vec_and_domain(
             data_uncoded.iter().map(|r| r[i]).collect(),
             scheme.domain_polycommit,
@@ -96,11 +96,11 @@ fn test_commit_commit1_bls12_381() {
 
         assert_eq!(
             scheme.kzg10_ck.powers_of_g.len(),
-            poly_poly.coeffs.len() + scheme.k
+            poly_poly.coeffs.len() + scheme.uncoded_chunks
         );
 
         //j iterates rows
-        for j in 0..scheme.kzg10_ck.powers_of_g.len() - scheme.k {
+        for j in 0..scheme.kzg10_ck.powers_of_g.len() - scheme.uncoded_chunks {
             commitment += scheme.kzg10_ck.powers_of_g[j].mul(poly_poly.coeffs[j]);
             comm_root_term1 += scheme.kzg10_ck.powers_of_g[j + i].mul(poly_poly.coeffs[j]);
             comm_root_term2 += commitment + scheme.kzg10_ck.powers_of_g[i].mul(poly_poly.coeffs[j]);
@@ -125,7 +125,10 @@ fn test_systematic_bls12_381() {
     let data_coded = scheme.disperse_encode_rows_lagrange(&data_uncoded);
     //assert uncoded data matches the first indices of coded
     assert_eq!(data_coded[0][0], data_uncoded[0][0]);
-    assert_eq!(data_coded[0][scheme.k - 1], data_uncoded[0][scheme.k - 1]);
+    assert_eq!(
+        data_coded[0][scheme.uncoded_chunks - 1],
+        data_uncoded[0][scheme.uncoded_chunks - 1]
+    );
 
     assert!(scheme.disperse_verify_chunks_systematic(&source_column_commitments, &data_coded));
 }

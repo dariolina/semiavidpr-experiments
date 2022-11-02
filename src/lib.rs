@@ -19,11 +19,10 @@ use crate::utils::Matrix;
 #[cfg(test)]
 mod tests;
 
-#[allow(non_snake_case)]
 pub struct SemiAvidPr<'a> {
-    n: usize,
-    k: usize,
-    L: usize,
+    coded_chunks: usize,
+    uncoded_chunks: usize,
+    chunk_length: usize,
 
     domain_polycommit: GeneralEvaluationDomain<Fr>,
     domain_encoding: GeneralEvaluationDomain<Fr>,
@@ -33,26 +32,34 @@ pub struct SemiAvidPr<'a> {
 }
 
 impl SemiAvidPr<'_> {
-    #[allow(non_snake_case)]
-    pub fn setup<R: Rng + ?Sized>(mut rng: &mut R, n: usize, k: usize, L: usize) -> Self {
-        assert!(n.is_power_of_two());
-        assert!(L.is_power_of_two());
+    pub fn setup<R: Rng + ?Sized>(
+        mut rng: &mut R,
+        coded_chunks: usize,
+        uncoded_chunks: usize,
+        chunk_length: usize,
+    ) -> Self {
+        assert!(coded_chunks.is_power_of_two());
+        assert!(chunk_length.is_power_of_two());
 
         let timer = start_timer!(|| "Creating evaluation domains");
         let domain_polycommit: GeneralEvaluationDomain<Fr> =
-            ark_poly::domain::EvaluationDomain::<Fr>::new(L).unwrap();
+            ark_poly::domain::EvaluationDomain::<Fr>::new(chunk_length).unwrap();
         let domain_encoding: GeneralEvaluationDomain<Fr> =
-            ark_poly::domain::EvaluationDomain::<Fr>::new(n).unwrap();
+            ark_poly::domain::EvaluationDomain::<Fr>::new(coded_chunks).unwrap();
         end_timer!(timer);
 
         let timer = start_timer!(|| "KZG setup and preprocessing of setup");
-        let kzg10_pp =
-            KZG10::<Bls12_381, DensePolynomial<Fr>>::setup(L + k - 1, false, &mut rng).unwrap();
+        let kzg10_pp = KZG10::<Bls12_381, DensePolynomial<Fr>>::setup(
+            chunk_length + uncoded_chunks - 1,
+            false,
+            &mut rng,
+        )
+        .unwrap();
 
         // https://github.com/arkworks-rs/poly-commit/blob/4d78d534cb55a9b13f34dd76b9702cae3ab2a2a1/src/kzg10/mod.rs#L459
         let (kzg10_ck, kzg10_vk) = {
-            let powers_of_g = kzg10_pp.powers_of_g[..=(L + k - 1)].to_vec();
-            let powers_of_gamma_g = (0..=(L + k - 1))
+            let powers_of_g = kzg10_pp.powers_of_g[..=(chunk_length + uncoded_chunks - 1)].to_vec();
+            let powers_of_gamma_g = (0..=(chunk_length + uncoded_chunks - 1))
                 .map(|i| kzg10_pp.powers_of_gamma_g[&i])
                 .collect();
 
@@ -74,9 +81,9 @@ impl SemiAvidPr<'_> {
         end_timer!(timer);
 
         Self {
-            n,
-            k,
-            L,
+            coded_chunks,
+            uncoded_chunks,
+            chunk_length,
 
             domain_polycommit,
             domain_encoding,
@@ -87,7 +94,7 @@ impl SemiAvidPr<'_> {
     }
 
     pub fn get_filesize(&self) -> usize {
-        (<Fr as PrimeField>::Params::CAPACITY as usize) * self.k * self.L
+        (<Fr as PrimeField>::Params::CAPACITY as usize) * self.uncoded_chunks * self.chunk_length
     }
 
     pub fn get_filesize_in_bytes(&self) -> u64 {
@@ -95,31 +102,31 @@ impl SemiAvidPr<'_> {
     }
 
     pub fn get_num_column_commitments(&self) -> usize {
-        return self.k;
+        return self.uncoded_chunks;
     }
 
     pub fn get_num_row_encodings(&self) -> usize {
-        return self.L;
+        return self.chunk_length;
     }
 
     pub fn get_num_chunk_verifications(&self) -> usize {
-        return self.n;
+        return self.coded_chunks;
     }
 
     pub fn get_num_downloaded_chunk_verifications(&self) -> usize {
-        return self.k;
+        return self.uncoded_chunks;
     }
 
     pub fn get_num_row_decodings(&self) -> usize {
-        return self.L;
+        return self.chunk_length;
     }
 
     pub fn generate_random_file<R: Rng + ?Sized>(&self, mut rng: &mut R) -> Vec<Vec<Fr>> {
-        let mut data = vec![vec![Fr::zero(); self.k]; self.L];
+        let mut data = vec![vec![Fr::zero(); self.uncoded_chunks]; self.chunk_length];
 
         let timer = start_timer!(|| "Sampling random field elements");
-        for i in 0..self.k {
-            for j in 0..self.L {
+        for i in 0..self.uncoded_chunks {
+            for j in 0..self.chunk_length {
                 data[j][i] = Fr::rand(&mut rng);
             }
         }
@@ -185,7 +192,7 @@ impl SemiAvidPr<'_> {
     }
 
     fn barycentric(&self, j: usize, idx: usize) -> Fr {
-        let d = self.k - 1;
+        let d = self.uncoded_chunks - 1;
         let d_in_field = Fr::from_le_bytes_mod_order(&d.to_le_bytes());
         let bary_coef = (self
             .domain_encoding
@@ -207,13 +214,13 @@ impl SemiAvidPr<'_> {
         let timer = start_timer!(|| "'Encoding' of KZG column commitments");
         let mut commitment = G1Projective::zero();
 
-        if idx >= self.k {
-            for j in 0..self.k {
+        if idx >= self.uncoded_chunks {
+            for j in 0..self.uncoded_chunks {
                 let coef = self.barycentric(j, idx);
                 commitment += column_commitments[j].mul(coef);
             }
-        } else if idx < self.k {
-            for j in 0..self.k {
+        } else if idx < self.uncoded_chunks {
+            for j in 0..self.uncoded_chunks {
                 let coef = self.lagrange(j, idx);
                 commitment += column_commitments[j].mul(coef);
             }
@@ -231,7 +238,7 @@ impl SemiAvidPr<'_> {
         let mut column_commitments = Vec::new();
 
         let timer_outer = start_timer!(|| "Computing column commitments");
-        for i in 0..self.k {
+        for i in 0..self.uncoded_chunks {
             let timer_inner = start_timer!(|| format!("Column {}", i));
 
             let commitment = self.commit_column(&data_uncoded, i);
@@ -305,17 +312,17 @@ impl SemiAvidPr<'_> {
     pub fn disperse_encode_rows_lagrange(&self, data_uncoded: &Vec<Vec<Fr>>) -> Vec<Vec<Fr>> {
         let mut data_coded = Vec::new();
 
-        for row in 0..self.L {
+        for row in 0..self.chunk_length {
             let mut poly_evals = Vec::new();
-            for idx in 0..self.n {
+            for idx in 0..self.coded_chunks {
                 let mut eval = Fr::zero();
-                if idx >= self.k {
-                    for j in 0..self.k {
+                if idx >= self.uncoded_chunks {
+                    for j in 0..self.uncoded_chunks {
                         let coef = self.barycentric(j, idx);
                         eval += data_uncoded[row][j] * coef;
                     }
-                } else if idx < self.k {
-                    for j in 0..self.k {
+                } else if idx < self.uncoded_chunks {
+                    for j in 0..self.uncoded_chunks {
                         let coef = self.lagrange(j, idx);
                         eval += data_uncoded[row][j] * coef;
                     }
@@ -326,7 +333,7 @@ impl SemiAvidPr<'_> {
             data_coded.push(poly_evals);
 
             //assert expected length of erasure coded data
-            assert_eq!(data_coded[row].len(), self.n);
+            assert_eq!(data_coded[row].len(), self.coded_chunks);
         }
 
         //assert uncoded data matches the even indices of coded
@@ -364,7 +371,7 @@ impl SemiAvidPr<'_> {
         data_coded: &Vec<Vec<Fr>>,
     ) -> bool {
         let timer_outer = start_timer!(|| "Checking coded columns");
-        for i in 0..self.n {
+        for i in 0..self.coded_chunks {
             let timer_inner = start_timer!(|| format!("Column {}", i));
 
             let commitment = self.commit_column(&data_coded, i);
@@ -444,10 +451,10 @@ impl SemiAvidPr<'_> {
     }
 
     pub fn retrieve_prepare_decoding(&self, idxs_download_nodes: &Vec<usize>) -> Matrix<Fr> {
-        assert!(idxs_download_nodes.len() == self.k);
+        assert!(idxs_download_nodes.len() == self.uncoded_chunks);
 
         let mut matrix = Vec::new();
-        for i in 0..self.k {
+        for i in 0..self.uncoded_chunks {
             let i_in_field = Fr::from_le_bytes_mod_order(&i.to_le_bytes());
             matrix.push(
                 idxs_download_nodes
@@ -457,7 +464,7 @@ impl SemiAvidPr<'_> {
             );
         }
 
-        Matrix::from_nested_vec(self.k, self.k, matrix).invert()
+        Matrix::from_nested_vec(self.uncoded_chunks, self.uncoded_chunks, matrix).invert()
     }
 
     pub fn retrieve_decode_rows(
@@ -469,7 +476,7 @@ impl SemiAvidPr<'_> {
         let mut data_decoded = Vec::new();
 
         let timer_outer = start_timer!(|| "Decoding rows");
-        for j in 0..self.L {
+        for j in 0..self.chunk_length {
             let timer_inner = start_timer!(|| format!("Row {}", j));
 
             assert!(data_coded_downloaded[j].len() == decoder_aux.height());

@@ -7,18 +7,17 @@ use rand::Rng;
 use std::time::Instant;
 
 /// Run Semi-AVID-PR experiments: https://arxiv.org/abs/2111.12323
-#[allow(non_snake_case)]
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
     /// Number of coded chunks
-    n: usize,
+    coded_chunks: usize,
 
     /// Number of uncoded chunks
-    k: usize,
+    uncoded_chunks: usize,
 
     /// Length of chunk
-    L: usize,
+    chunk_length: usize,
 
     /// Iterations of the dispersal experiment
     #[clap(short, long, default_value_t = 1)]
@@ -238,12 +237,11 @@ impl core::ops::Div<usize> for Measurements {
 //     dummy
 // }
 
-#[allow(non_snake_case)]
 fn run_dispersal_experiment<R: Rng + ?Sized>(
     mut rng: &mut R,
-    n: usize,
-    k: usize,
-    L: usize,
+    coded_chunks: usize,
+    uncoded_chunks: usize,
+    chunk_length: usize,
 ) -> Measurements {
     let mut measurements = Measurements::default();
     measurements.num_measurements = 1;
@@ -253,7 +251,7 @@ fn run_dispersal_experiment<R: Rng + ?Sized>(
     // setup
 
     let timer_begin = Instant::now();
-    let scheme = SemiAvidPr::setup(&mut rng, n, k, L);
+    let scheme = SemiAvidPr::setup(&mut rng, coded_chunks, uncoded_chunks, chunk_length);
     measurements.runtime_setup_seconds = timer_begin.elapsed().as_secs_f64();
 
     measurements.net_file_size_bytes = scheme.get_filesize_in_bytes() as usize;
@@ -304,25 +302,28 @@ fn run_dispersal_experiment<R: Rng + ?Sized>(
 
     // BOOKKEEPING
 
-    measurements.size_file_uncoded_bytes = std::mem::size_of::<Fr>() * k * L;
-    measurements.size_column_commitments_bytes = std::mem::size_of::<G1Affine>() * k;
-    measurements.size_file_coded_bytes = std::mem::size_of::<Fr>() * n * L;
+    measurements.size_file_uncoded_bytes =
+        std::mem::size_of::<Fr>() * uncoded_chunks * chunk_length;
+    measurements.size_column_commitments_bytes = std::mem::size_of::<G1Affine>() * uncoded_chunks;
+    measurements.size_file_coded_bytes = std::mem::size_of::<Fr>() * coded_chunks * chunk_length;
 
     measurements.scenario_disperse_runtime_client_seconds = measurements
         .runtime_all_column_commitments_seconds
         + measurements.runtime_all_row_encodings_seconds;
     measurements.scenario_disperse_runtime_node_seconds =
         measurements.runtime_per_chunk_verification_seconds;
-    measurements.scenario_disperse_communication_bytes =
-        n * measurements.size_column_commitments_bytes + measurements.size_file_coded_bytes;
-    measurements.scenario_disperse_storage_bytes =
-        n * measurements.size_column_commitments_bytes + measurements.size_file_coded_bytes;
+    measurements.scenario_disperse_communication_bytes = coded_chunks
+        * measurements.size_column_commitments_bytes
+        + measurements.size_file_coded_bytes;
+    measurements.scenario_disperse_storage_bytes = coded_chunks
+        * measurements.size_column_commitments_bytes
+        + measurements.size_file_coded_bytes;
 
     // RETRIEVAL
 
     // retrieve chunks
 
-    let idxs_download_nodes: Vec<usize> = (k..2 * k).collect(); // an arbitrary set of storage nodes to download from
+    let idxs_download_nodes: Vec<usize> = (uncoded_chunks..2 * uncoded_chunks).collect(); // an arbitrary set of storage nodes to download from
     let file_coded_downloaded = scheme.retrieve_download_chunks(&file_coded, &idxs_download_nodes);
 
     // verify chunks
@@ -357,8 +358,8 @@ fn run_dispersal_experiment<R: Rng + ?Sized>(
 
     // black_box(file_uncoded_downloaded);
 
-    for row in 0..L {
-        for col in 0..k {
+    for row in 0..chunk_length {
+        for col in 0..uncoded_chunks {
             assert!(file_uncoded[row][col] == file_uncoded_downloaded[row][col]);
         }
     }
@@ -372,7 +373,7 @@ fn run_dispersal_experiment<R: Rng + ?Sized>(
 
     // SAMPLING (OPENING ENTRIES)
 
-    measurements.scenario_sampling_num_openings = std::cmp::min(k, L);
+    measurements.scenario_sampling_num_openings = std::cmp::min(uncoded_chunks, chunk_length);
     for idx in 0..measurements.scenario_sampling_num_openings {
         let timer_begin = Instant::now();
         let opening = scheme.sampling_open_entry(&column_commitments, &file_uncoded, idx, idx);
@@ -410,22 +411,25 @@ fn main() {
     let args = Args::parse();
     println!("# {:?}", args);
 
-    if !(args.n.is_power_of_two()) || !(args.L.is_power_of_two()) {
+    if !(args.coded_chunks.is_power_of_two()) || !(args.chunk_length.is_power_of_two()) {
         let mut app = Args::into_app();
         app.error(ErrorKind::InvalidValue, "N and L have to be a power of 2")
             .exit();
     }
 
-    assert!(args.n.is_power_of_two());
-    assert!(args.L.is_power_of_two());
+    assert!(args.coded_chunks.is_power_of_two());
+    assert!(args.chunk_length.is_power_of_two());
 
     let mut measurement = Measurements::default();
     for _iter in 0..args.iterations {
         measurement = measurement
             + match args.curve {
-                CurveArg::Bls12_381 => {
-                    run_dispersal_experiment::<_>(&mut rng, args.n, args.k, args.L)
-                }
+                CurveArg::Bls12_381 => run_dispersal_experiment::<_>(
+                    &mut rng,
+                    args.coded_chunks,
+                    args.uncoded_chunks,
+                    args.chunk_length,
+                ),
             };
     }
 
@@ -444,9 +448,9 @@ fn main() {
         {:.6} {:.6} {} {}  \
         {:.6}  \
         {} {:.6} {:.6} {}",
-        args.n,
-        args.k,
-        args.L,
+        args.coded_chunks,
+        args.uncoded_chunks,
+        args.chunk_length,
         args.iterations,
         args.curve,
         measurement.net_file_size_bytes,
