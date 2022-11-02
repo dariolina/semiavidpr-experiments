@@ -310,30 +310,30 @@ impl SemiAvidPr<'_> {
     // }
 
     pub fn disperse_encode_rows_lagrange(&self, data_uncoded: &Vec<Vec<Fr>>) -> Vec<Vec<Fr>> {
-        let mut data_coded = Vec::new();
+        let mut data_coded = Vec::with_capacity(data_uncoded.len());
 
-        for row in 0..self.chunk_length {
-            let mut poly_evals = Vec::new();
+        for row in data_uncoded {
+            let mut poly_evals = Vec::with_capacity(self.coded_chunks);
             for idx in 0..self.coded_chunks {
                 let mut eval = Fr::zero();
                 if idx >= self.uncoded_chunks {
                     for j in 0..self.uncoded_chunks {
                         let coef = self.barycentric(j, idx);
-                        eval += data_uncoded[row][j] * coef;
+                        eval += row[j] * coef;
                     }
                 } else if idx < self.uncoded_chunks {
                     for j in 0..self.uncoded_chunks {
                         let coef = self.lagrange(j, idx);
-                        eval += data_uncoded[row][j] * coef;
+                        eval += row[j] * coef;
                     }
                 }
                 poly_evals.push(eval);
             }
 
-            data_coded.push(poly_evals);
-
             //assert expected length of erasure coded data
-            assert_eq!(data_coded[row].len(), self.coded_chunks);
+            assert_eq!(poly_evals.len(), self.coded_chunks);
+
+            data_coded.push(poly_evals);
         }
 
         //assert uncoded data matches the even indices of coded
