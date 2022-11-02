@@ -132,3 +132,26 @@ fn test_systematic_bls12_381() {
 
     assert!(scheme.disperse_verify_chunks_systematic(&source_column_commitments, &data_coded));
 }
+
+#[test]
+fn prototype_encoding_decoding() {
+    let mut rng = rand::thread_rng();
+
+    let uncoded_chunks = 8;
+    let coded_chunks = 16;
+
+    let scheme = SemiAvidPr::setup(&mut rng, coded_chunks, uncoded_chunks, 32);
+
+    let data_uncoded = scheme.generate_random_file(&mut rng);
+
+    let data_coded = scheme.disperse_encode_rows_lagrange(&data_uncoded);
+
+    // Chunks from which erasure decoding will happen, take last `uncoded_chunks`
+    let coded_entries: Vec<usize> = (0..coded_chunks).rev().take(uncoded_chunks).rev().collect();
+    let data_coded_downloaded = scheme.retrieve_download_chunks(&data_coded, &coded_entries);
+
+    let decoder_aux = scheme.retrieve_prepare_decoding(&coded_entries);
+    let data_uncoded_downloaded = scheme.retrieve_decode_rows(&data_coded_downloaded, &decoder_aux);
+
+    assert_eq!(data_uncoded, data_uncoded_downloaded);
+}
