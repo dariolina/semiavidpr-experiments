@@ -184,13 +184,6 @@ impl SemiAvidPr<'_> {
     //     commitment
     // }
 
-    fn lagrange(&self, i: usize, idx: usize) -> Fr {
-        if idx == i {
-            return Fr::one();
-        }
-        Fr::zero()
-    }
-
     fn barycentric(&self, j: usize, idx: usize) -> Fr {
         let d = self.uncoded_chunks - 1;
         let d_in_field = Fr::from_le_bytes_mod_order(&d.to_le_bytes());
@@ -219,11 +212,8 @@ impl SemiAvidPr<'_> {
                 let coef = self.barycentric(j, idx);
                 commitment += column_commitments[j].mul(coef);
             }
-        } else if idx < self.uncoded_chunks {
-            for j in 0..self.uncoded_chunks {
-                let coef = self.lagrange(j, idx);
-                commitment += column_commitments[j].mul(coef);
-            }
+        } else {
+            commitment += column_commitments[idx].mul(Fr::one());
         }
 
         end_timer!(timer);
@@ -314,18 +304,15 @@ impl SemiAvidPr<'_> {
 
         for row in data_uncoded {
             let mut poly_evals = Vec::with_capacity(self.coded_chunks);
-            for idx in 0..self.coded_chunks {
+            // Extend with source data first
+            poly_evals.extend(row);
+
+            // Then add erasure coded data
+            for idx in (0..self.coded_chunks).skip(self.uncoded_chunks) {
                 let mut eval = Fr::zero();
-                if idx >= self.uncoded_chunks {
-                    for j in 0..self.uncoded_chunks {
-                        let coef = self.barycentric(j, idx);
-                        eval += row[j] * coef;
-                    }
-                } else if idx < self.uncoded_chunks {
-                    for j in 0..self.uncoded_chunks {
-                        let coef = self.lagrange(j, idx);
-                        eval += row[j] * coef;
-                    }
+                for j in 0..self.uncoded_chunks {
+                    let coef = self.barycentric(j, idx);
+                    eval += row[j] * coef;
                 }
                 poly_evals.push(eval);
             }
