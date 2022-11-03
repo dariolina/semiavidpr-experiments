@@ -233,18 +233,29 @@ impl SemiAvidPr<'_> {
     // }
 
     fn evaluate_barycentric(&self, j: usize, idx: usize) -> Fr {
-        let d = self.uncoded_chunks - 1;
+        let d = self.uncoded_chunks;
+        if 2*j==idx{
+            return Fr::one();
+        }
+        
         let d_in_field = Fr::from_le_bytes_mod_order(&d.to_le_bytes());
-        let bary_coef = (self
-            .domain_encoding
+        let domain_uncoded: GeneralEvaluationDomain<Fr> =
+            ark_poly::domain::EvaluationDomain::<Fr>::new(self.uncoded_chunks).unwrap();
+
+        assert_eq!(domain_uncoded.element(d), Fr::one());
+        assert_ne!(self.domain_encoding.element(d),Fr::one());
+        assert_ne!(self.domain_encoding.element(idx), domain_uncoded.element(j),"zero at {idx} and {j}");
+
+        let bary_coef = (self.domain_encoding
             .element(idx)
             .pow(d_in_field.into_repr())
-            - self.domain_encoding.element(1))
-            / self.domain_encoding.element(d);
+            - Fr::one())
+            / d_in_field;
 
-        (self.domain_encoding.element(j)
-            / (self.domain_encoding.element(idx) - self.domain_encoding.element(j)))
-            * bary_coef
+        (domain_uncoded.element(j)
+            / (self.domain_encoding.element(idx) - domain_uncoded.element(j)))
+           *bary_coef
+        
     }
 
     fn encode_commitments_systematic(
