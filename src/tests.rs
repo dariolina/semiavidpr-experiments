@@ -132,6 +132,30 @@ fn test_systematic_bls12_381() {
 
     assert!(scheme.disperse_verify_chunks_systematic(&source_column_commitments, &data_coded));
 }
+#[test]
+fn test_fft_bls12_381() {
+    let mut rng = rand::thread_rng();
+
+    let scheme = SemiAvidPr::setup(&mut rng, 16, 8, 1024);
+    let data_uncoded = scheme.generate_random_file(&mut rng);
+
+    let source_column_commitments = scheme.disperse_compute_column_commitments(&data_uncoded);
+
+    let data_coded = scheme.disperse_encode_rows_systematic(&data_uncoded);
+    //assert uncoded data matches the even indices of coded
+    assert_eq!(data_coded[0][0], data_uncoded[0][0]);
+    assert_eq!(data_coded[0][2], data_uncoded[0][1]);
+
+  //  assert_eq!(
+    //    data_coded[0][scheme.uncoded_chunks - 1],
+    //    data_uncoded[0][scheme.uncoded_chunks - 1]
+    //);
+
+    //assert coded data doesn't copy uncoded
+    assert_ne!(data_coded[0][scheme.uncoded_chunks], data_coded[0][0]);
+
+    assert!(scheme.disperse_verify_chunks_fft(&source_column_commitments, &data_coded));
+}
 
 #[test]
 fn prototype_encoding_decoding() {
