@@ -269,6 +269,48 @@ impl SemiAvidPr<'_> {
         commitment
     }
 
+    pub fn encode_commitments_fft( 
+        &self,
+        column_commitments: &Vec<G1Affine>
+    )->Vec<G1Affine> {
+
+        let mut coef_commitments_projective: Vec<G1Projective> = column_commitments
+            .iter()
+            .map(|h| h.clone().into())
+            .collect();
+
+        //coef_commitments_projective.resize(self.domain_encoding.size(), G1Projective::zero());
+
+       let domain_uncoded: GeneralEvaluationDomain<Fr> =
+             ark_poly::domain::EvaluationDomain::<Fr>::new(self.uncoded_chunks).unwrap();
+        domain_uncoded
+            .ifft_in_place(&mut coef_commitments_projective);
+
+        let coef_commitments_affine: Vec<G1Affine> = coef_commitments_projective
+            .iter()
+            .map(|h| h.into_affine())
+            .collect();
+
+        let mut comm_evals = Vec::with_capacity(self.coded_chunks);
+            // Extend with source data first
+           // comm_evals.extend(column_commitments);   
+         // Then add erasure coded data
+        for idx in 0..self.coded_chunks{     
+        let mut commitment = G1Projective::zero();
+                for j in 0..self.uncoded_chunks {
+                    let j_in_field = Fr::from_le_bytes_mod_order(&j.to_le_bytes());
+                    let eval_exponent = self
+                        .domain_encoding
+                        .element(idx)
+                        .pow(j_in_field.into_repr());
+                    commitment += coef_commitments_affine[j].mul(eval_exponent);
+                }
+                let commitment = commitment.into_affine();
+                comm_evals.push(commitment);
+            }
+        comm_evals
+    }
+
     pub fn disperse_compute_column_commitments(
         &self,
         data_uncoded: &Vec<Vec<Fr>>,
@@ -307,45 +349,46 @@ impl SemiAvidPr<'_> {
     //     data_coded
     // }
 
-    // pub fn disperse_encode_rows_systematic(
-    //     &self,
-    //     data_uncoded: &Vec<Vec<Fr>>,
-    // ) -> Vec<Vec<Fr>> {
-    //     let mut data_coded = Vec::new();
-    //
-    //     let timer_outer = start_timer!(|| "Encoding rows");
-    //     let domain_uncoded: GeneralEvaluationDomain<Fr> =
-    //         ark_poly::domain::EvaluationDomain::<Fr>::new(self.k).unwrap();
-    //     for j in 0..self.L {
-    //         let timer_inner = start_timer!(|| format!("Row {}", j));
-    //         //assert expected length of source data
-    //         //assert_eq!(data_uncoded[j].len(), self.k);
-    //
-    //         let mut poly_evals = Evaluations::from_vec_and_domain(
-    //             data_uncoded[j].iter().copied().collect(),
-    //             domain_uncoded,
-    //         );
-    //         let poly_poly = poly_evals.interpolate();
-    //         //assert expected degree of interpolated polynomial
-    //         //assert_eq!(poly_poly.degree(), self.k-1);
-    //
-    //         poly_evals = poly_poly.evaluate_over_domain(self.domain_encoding);
-    //
-    //         data_coded.push(poly_evals.evals);
-    //
-    //         //assert expected length of erasure coded data
-    //         assert_eq!(data_coded[j].len(), self.n);
-    //
-    //         end_timer!(timer_inner);
-    //     }
-    //     end_timer!(timer_outer);
-    //
-    //     //assert uncoded data matches the even indices of coded
-    //     // assert_eq!(data_coded[0][0], data_uncoded[0][0]);
-    //     //assert_eq!(data_coded[0][2], data_uncoded[0][1]);
-    //
-    //     data_coded
-    // }
+    pub fn disperse_encode_rows_systematic(
+        &self,
+        data_uncoded: &Vec<Vec<Fr>>,
+    ) -> Vec<Vec<Fr>> {
+        let mut data_coded = Vec::new();
+    
+        let timer_outer = start_timer!(|| "Encoding rows");
+        let domain_uncoded: GeneralEvaluationDomain<Fr> =
+            ark_poly::domain::EvaluationDomain::<Fr>::new(self.uncoded_chunks).unwrap();
+        for j in 0..self.chunk_length {
+            let timer_inner = start_timer!(|| format!("Row {}", j));
+            //assert expected length of source data
+            //assert_eq!(data_uncoded[j].len(), self.k);
+    
+            let mut poly_evals = Evaluations::from_vec_and_domain(
+                data_uncoded[j].iter().copied().collect(),
+                domain_uncoded,
+            );
+
+            let poly_poly = poly_evals.interpolate();
+            //assert expected degree of interpolated polynomial
+            assert_eq!(poly_poly.degree(), self.uncoded_chunks-1);
+    
+            poly_evals = poly_poly.evaluate_over_domain(self.domain_encoding);
+    
+            data_coded.push(poly_evals.evals);
+    
+            //assert expected length of erasure coded data
+            assert_eq!(data_coded[j].len(), self.coded_chunks);
+    
+            end_timer!(timer_inner);
+        }
+        end_timer!(timer_outer);
+    
+        //assert uncoded data matches the even indices of coded
+        assert_eq!(data_coded[0][0], data_uncoded[0][0]);
+        assert_eq!(data_coded[0][2], data_uncoded[0][1]);
+    
+        data_coded
+    }
 
     pub fn disperse_encode_rows_lagrange(&self, data_uncoded: &Vec<Vec<Fr>>) -> Vec<Vec<Fr>> {
         let mut data_coded = Vec::with_capacity(data_uncoded.len());
@@ -424,6 +467,31 @@ impl SemiAvidPr<'_> {
         true
     }
 
+    pub fn disperse_verify_chunks_fft(
+        &self,
+        source_column_commitments: &Vec<G1Affine>,
+        data_coded: &Vec<Vec<Fr>>,
+    ) -> bool {
+        let timer_outer = start_timer!(|| "Checking coded columns");
+        for i in 0..self.coded_chunks {
+            let timer_inner = start_timer!(|| format!("Column {}", i));
+
+            let commitment = self.commit_column(&data_coded, i);
+            let commitment_interp =
+                self.encode_commitments_fft(&source_column_commitments);
+
+            if commitment != commitment_interp[i] {
+                print!("column {i} doesn't verify");
+                return false;
+            }
+
+            end_timer!(timer_inner);
+        }
+        end_timer!(timer_outer);
+
+        true
+    }
+
     pub fn retrieve_download_chunks(
         &self,
         data_coded: &Vec<Vec<Fr>>,
@@ -485,6 +553,55 @@ impl SemiAvidPr<'_> {
         true
     }
 
+    pub fn retrieve_decode_rows_fft(
+        &self,
+        data_coded_downloaded: &Vec<Vec<Fr>>,
+        //idxs_download_nodes: &Vec<usize>,
+    ) -> Vec<Vec<Fr>> {
+        
+        let mut data_decoded = Vec::new();
+
+        let timer_outer = start_timer!(|| "Decoding rows");
+            let domain_uncoded: GeneralEvaluationDomain<Fr> =
+                 ark_poly::domain::EvaluationDomain::<Fr>::new(self.uncoded_chunks).unwrap();
+
+        for row in 0..self.chunk_length {
+            let timer_inner = start_timer!(|| format!("Row {}", j));
+            //assert expected length of source data
+            //assert_eq!(data_uncoded[j].len(), self.k);
+    
+            let mut coded_evals = 
+                data_coded_downloaded[row].iter().copied().collect();
+                
+            self.domain_encoding
+                .ifft_in_place(&mut coded_evals);
+
+            let mut source_evals = Vec::with_capacity(self.uncoded_chunks);
+            
+            for idx in 0..self.uncoded_chunks{     
+            let mut eval = Fr::zero();
+                    for j in 0..self.uncoded_chunks {
+                        let j_in_field = Fr::from_le_bytes_mod_order(&j.to_le_bytes());
+                        let eval_exponent = 
+                        self.domain_encoding
+                            .element(2*idx)
+                            .pow(j_in_field.into_repr());
+                        eval += coded_evals[j]*eval_exponent;
+                    }
+                    
+                    source_evals.push(eval);
+                    
+                }
+             
+            data_decoded.push(source_evals);
+
+            end_timer!(timer_inner);
+        }
+        end_timer!(timer_outer);
+
+        data_decoded
+    }
+
     pub fn retrieve_prepare_decoding(&self, idxs_download_nodes: &Vec<usize>) -> Matrix<Fr> {
         assert!(idxs_download_nodes.len() == self.uncoded_chunks);
 
@@ -531,6 +648,7 @@ impl SemiAvidPr<'_> {
 
         data_decoded
     }
+
 
     pub fn sampling_open_entry(
         &self,
