@@ -618,8 +618,6 @@ impl SemiAvidPr<'_> {
             let poly_from_coded =
                 DensePolynomial::from_coefficients_vec(coded_evals);
 
-            print!("poly degree decoded {}", poly_from_coded.degree());
-
             let mut source_evals = Vec::with_capacity(self.uncoded_chunks);
 
             for x in domain_uncoded.elements() {
