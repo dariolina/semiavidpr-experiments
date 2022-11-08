@@ -402,6 +402,47 @@ impl SemiAvidPr<'_> {
         data_coded
     }
 
+    pub fn disperse_encode_rows_fft(
+        &self,
+        data_uncoded: &Vec<Vec<Fr>>,
+    ) -> Vec<Vec<Fr>> {
+        let mut data_coded = Vec::new();
+    
+        let timer_outer = start_timer!(|| "Encoding rows");
+        let domain_uncoded: GeneralEvaluationDomain<Fr> =
+            ark_poly::domain::EvaluationDomain::<Fr>::new(self.uncoded_chunks).unwrap();
+        for row in 0..self.chunk_length {
+            let timer_inner = start_timer!(|| format!("Row {}", j));
+            let mut source_evals = Evaluations::from_vec_and_domain(
+                data_uncoded[row].iter().copied().collect(),
+                domain_uncoded,
+            ).evals;
+            assert_eq!(source_evals, data_uncoded[row]);
+            domain_uncoded
+                .ifft_in_place(&mut source_evals);
+
+        let coset_evals = domain_uncoded.coset_fft(&source_evals);
+
+       let mut row_evals = Vec::with_capacity(self.coded_chunks);
+       // Extend with source data first
+           row_evals.extend(data_uncoded[row].iter().copied());   
+       // Then add erasure coded data
+           row_evals.extend(coset_evals);
+            data_coded.push(row_evals);
+            //assert expected length of erasure coded data
+            assert_eq!(data_coded[row].len(), self.coded_chunks);
+    
+            end_timer!(timer_inner);
+        }
+        end_timer!(timer_outer);
+    
+        //assert uncoded data matches the first indices of coded
+        assert_eq!(data_coded[0][0], data_uncoded[0][0]);
+        assert_eq!(data_coded[0][1], data_uncoded[0][1]);
+    
+        data_coded
+    }
+
     pub fn disperse_encode_rows_lagrange(&self, data_uncoded: &Vec<Vec<Fr>>) -> Vec<Vec<Fr>> {
         let mut data_coded = Vec::with_capacity(data_uncoded.len());
 

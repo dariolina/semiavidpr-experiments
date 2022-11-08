@@ -172,7 +172,7 @@ fn prototype_encoding_decoding() {
     let data_uncoded = scheme.generate_random_file(&mut rng);
 
     let data_coded = scheme.disperse_encode_rows_systematic(&data_uncoded);
-
+    let data_coded = scheme.disperse_encode_rows_fft(&data_uncoded);
     // Chunks from which erasure decoding will happen, take last `uncoded_chunks`
     let coded_entries: Vec<usize> = (0..coded_chunks).rev().take(uncoded_chunks).rev().collect();
 
