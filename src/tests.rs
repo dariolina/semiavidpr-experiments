@@ -130,6 +130,9 @@ fn test_systematic_bls12_381() {
         data_uncoded[0][scheme.uncoded_chunks - 1]
     );
 
+    //assert coded data doesn't copy uncoded
+    assert_ne!(data_coded[0][scheme.uncoded_chunks], data_coded[0][0]);
+
     assert!(scheme.disperse_verify_chunks_systematic(&source_column_commitments, &data_coded));
 }
 #[test]
@@ -194,7 +197,7 @@ fn prototype_encoding_decoding_whole_data() {
 
     let data_coded = scheme.disperse_encode_rows_systematic(&data_uncoded);
 
-    // Chunks from which erasure decoding will happen, take last `uncoded_chunks`
+    // this is all data
     let coded_entries: Vec<usize> = (0..coded_chunks).collect();
 
     let data_coded_downloaded = scheme.retrieve_download_chunks(&data_coded, &coded_entries);

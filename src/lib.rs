@@ -382,7 +382,8 @@ impl SemiAvidPr<'_> {
             let poly_poly = poly_evals.interpolate();
             //assert expected degree of interpolated polynomial
             assert_eq!(poly_poly.degree(), self.uncoded_chunks-1);
-    
+
+            //increase the domain size to get more values for erasure coding
             poly_evals = poly_poly.evaluate_over_domain(self.domain_encoding);
     
             data_coded.push(poly_evals.evals);
@@ -573,8 +574,8 @@ impl SemiAvidPr<'_> {
         let mut data_decoded = Vec::new();
 
         let timer_outer = start_timer!(|| "Decoding rows");
-            let domain_uncoded: GeneralEvaluationDomain<Fr> =
-                 ark_poly::domain::EvaluationDomain::<Fr>::new(self.uncoded_chunks).unwrap();
+        //let domain_uncoded: GeneralEvaluationDomain<Fr> =
+        //         ark_poly::domain::EvaluationDomain::<Fr>::new(self.uncoded_chunks).unwrap();
 
         for row in 0..self.chunk_length {
             let timer_inner = start_timer!(|| format!("Row {}", j));
@@ -583,27 +584,19 @@ impl SemiAvidPr<'_> {
     
             let mut coded_evals = 
                 data_coded_downloaded[row].iter().copied().collect();
-                
+
+            //turn into coefficients    
             self.domain_encoding
                 .ifft_in_place(&mut coded_evals);
 
+            let decoded_poly = DensePolynomial::from_coefficients_slice(&coded_evals);
+            let all_evals = decoded_poly.evaluate_over_domain(self.domain_encoding);
+
             let mut source_evals = Vec::with_capacity(self.uncoded_chunks);
-            
-            for idx in 0..self.uncoded_chunks{     
-            let mut eval = Fr::zero();
-                    for j in 0..self.uncoded_chunks {
-                        let j_in_field = Fr::from_le_bytes_mod_order(&j.to_le_bytes());
-                        let eval_exponent = 
-                        self.domain_encoding
-                            .element(2*idx)
-                            .pow(j_in_field.into_repr());
-                        eval += coded_evals[j]*eval_exponent;
-                    }
-                    
-                    source_evals.push(eval);
-                    
-                }
-             
+            for i in all_evals.evals.iter().step_by(2) {
+                source_evals.push(*i);
+            }
+
             data_decoded.push(source_evals);
 
             end_timer!(timer_inner);
