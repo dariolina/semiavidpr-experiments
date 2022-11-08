@@ -3,7 +3,8 @@ use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::fields::{Field, FpParameters, PrimeField};
 use ark_poly::{
     evaluations::univariate::Evaluations, polynomial::univariate::DensePolynomial,
-    EvaluationDomain, GeneralEvaluationDomain, Polynomial, UVPolynomial,
+    EvaluationDomain, GeneralEvaluationDomain, Radix2EvaluationDomain,
+    Polynomial, UVPolynomial,
 };
 use ark_poly_commit::{
     kzg10::{Commitment, Powers, Proof, Randomness, VerifierKey, KZG10},
@@ -290,35 +291,24 @@ impl SemiAvidPr<'_> {
             .map(|h| h.clone().into())
             .collect();
 
-        //coef_commitments_projective.resize(self.domain_encoding.size(), G1Projective::zero());
-
-       let domain_uncoded: GeneralEvaluationDomain<Fr> =
+        let domain_uncoded: GeneralEvaluationDomain<Fr> =
              ark_poly::domain::EvaluationDomain::<Fr>::new(self.uncoded_chunks).unwrap();
+        
         domain_uncoded
             .ifft_in_place(&mut coef_commitments_projective);
 
-        let coef_commitments_affine: Vec<G1Affine> = coef_commitments_projective
+        let comm_coset_evals = domain_uncoded.coset_fft(&coef_commitments_projective);
+
+        let comm_coset_affine: Vec<G1Affine> = comm_coset_evals
             .iter()
             .map(|h| h.into_affine())
             .collect();
 
         let mut comm_evals = Vec::with_capacity(self.coded_chunks);
-            // Extend with source data first
-           // comm_evals.extend(column_commitments);   
-         // Then add erasure coded data
-        for idx in 0..self.coded_chunks{     
-        let mut commitment = G1Projective::zero();
-                for j in 0..self.uncoded_chunks {
-                    let j_in_field = Fr::from_le_bytes_mod_order(&j.to_le_bytes());
-                    let eval_exponent = self
-                        .domain_encoding
-                        .element(idx)
-                        .pow(j_in_field.into_repr());
-                    commitment += coef_commitments_affine[j].mul(eval_exponent);
-                }
-                let commitment = commitment.into_affine();
-                comm_evals.push(commitment);
-            }
+        // Extend with source data first
+            comm_evals.extend(column_commitments);   
+        // Then add erasure coded data
+            comm_evals.extend(comm_coset_affine);
         comm_evals
     }
 
