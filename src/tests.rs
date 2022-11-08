@@ -223,7 +223,7 @@ fn prototype_encoding_decoding() {
 
     let data_uncoded_downloaded = scheme.retrieve_decode_rows_fft(&data_coded_downloaded);
 
-    assert_eq!(data_uncoded[0], data_uncoded_downloaded[0]);
+    assert_eq!(data_uncoded, data_uncoded_downloaded);
 }
 
 #[test]
