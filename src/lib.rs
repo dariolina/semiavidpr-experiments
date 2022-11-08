@@ -599,35 +599,33 @@ impl SemiAvidPr<'_> {
     pub fn retrieve_decode_rows_fft(
         &self,
         data_coded_downloaded: &Vec<Vec<Fr>>,
-        //idxs_download_nodes: &Vec<usize>,
     ) -> Vec<Vec<Fr>> {
-        
         let mut data_decoded = Vec::new();
 
         let timer_outer = start_timer!(|| "Decoding rows");
-        //let domain_uncoded: GeneralEvaluationDomain<Fr> =
-        //         ark_poly::domain::EvaluationDomain::<Fr>::new(self.uncoded_chunks).unwrap();
+        let domain_uncoded: Radix2EvaluationDomain<Fr> =
+                 ark_poly::domain::Radix2EvaluationDomain::<Fr>::new(self.uncoded_chunks).unwrap();
+                
 
         for row in 0..self.chunk_length {
             let timer_inner = start_timer!(|| format!("Row {}", j));
-            //assert expected length of source data
-            //assert_eq!(data_uncoded[j].len(), self.k);
     
             let mut coded_evals = 
                 data_coded_downloaded[row].iter().copied().collect();
+                
+            domain_uncoded.coset_ifft_in_place(&mut coded_evals);
 
-            //turn into coefficients    
-            self.domain_encoding
-                .ifft_in_place(&mut coded_evals);
+            let poly_from_coded =
+                DensePolynomial::from_coefficients_vec(coded_evals);
 
-            let decoded_poly = DensePolynomial::from_coefficients_slice(&coded_evals);
-            let all_evals = decoded_poly.evaluate_over_domain(self.domain_encoding);
+            print!("poly degree decoded {}", poly_from_coded.degree());
 
             let mut source_evals = Vec::with_capacity(self.uncoded_chunks);
-            for i in all_evals.evals.iter().step_by(2) {
-                source_evals.push(*i);
-            }
 
+            for x in domain_uncoded.elements() {
+
+                source_evals.push(poly_from_coded.evaluate(&x));
+            }
             data_decoded.push(source_evals);
 
             end_timer!(timer_inner);
